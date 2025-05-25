@@ -1,0 +1,27 @@
+{
+  "site_url": "https://www.napoleonsports.be",
+  "login_coords": {
+    "username": [780, 130],
+    "password": [960, 130],
+    "submit": [1150, 130],
+    "popup_close": [550, 340]
+  },
+  "navigation": {
+    "live_coords": [640, 190],
+    "match_input_coords": [1060, 240],
+    "match_click_coords": [850, 370]
+  },
+  "outcome_coords": {
+    "OUTCOME_SEARCH_REGION": [220, 273, 938, 691]
+  },
+  "bet_input_candidates": [
+    [1100, 670],
+    [1150, 670],
+    [1200, 670]
+  ],
+  "ocr_settings": {
+    "TARGET_COLOR": [255, 255, 255],
+    "COLOR_TOLERANCE": 10
+  },
+  "retry_coords": [1254, 363]
+}
