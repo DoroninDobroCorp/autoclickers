@@ -1,0 +1,75 @@
+[
+    {
+\t   "first": {
+\t\t  "bookmaker": "Pinnacle",
+\t\t  "leagueName": "ethiopia higher league",
+\t\t  "homeScore": 0,
+\t\t  "awayScore": 3,
+\t\t  "homeName": "bench maji bunna",
+\t\t  "awayName": "gamo chencha",
+\t\t  "matchId": "1606076452",
+\t\t  "createdAt": "2025-03-13T12:36:03.394721102Z",
+\t\t  "Raw": null
+\t   },
+\t   "second": {
+\t\t  "bookmaker": "Sansabet",
+\t\t  "leagueName": "Ethiopia Higher League",
+\t\t  "homeScore": 0,
+\t\t  "awayScore": 3,
+\t\t  "homeName": "Bench Maji Buna FC",
+\t\t  "awayName": "Gamo Chencha",
+\t\t  "matchId": "4527633",
+\t\t  "createdAt": "2025-03-13T12:36:01.811692971Z",
+\t\t  "Raw": {
+\t\t\t "match_name": "Bench Maji Buna FC : Gamo Chencha"
+\t\t  }
+\t   },
+\t   "outcome": [
+\t\t  {
+\t\t\t "outcome": "T\u003c 3.5",
+\t\t\t "roi": -7.42751934115299,
+\t\t\t "margin": 1.0753640457519498,
+\t\t\t "score1": {
+\t\t\t\t"value": 1.467,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "score2": {
+\t\t\t\t"value": 1.45,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "marketType": -1
+\t\t  },
+\t\t  {
+\t\t\t "outcome": "IT2\u003c 3.5",
+\t\t\t "roi": -8.139644771509053,
+\t\t\t "margin": 1.08,
+\t\t\t "score1": {
+\t\t\t\t"value": 1.223,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "score2": {
+\t\t\t\t"value": 1.2,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "marketType": -1
+\t\t  },
+\t\t  {
+\t\t\t "outcome": "T\u003e 3.5",
+\t\t\t "roi": -10.66355046144975,
+\t\t\t "margin": 1.0753640457519498,
+\t\t\t "score1": {
+\t\t\t\t"value": 2.54,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "score2": {
+\t\t\t\t"value": 2.45,
+\t\t\t\t"raw": null
+\t\t\t },
+\t\t\t "marketType": 0
+\t\t  }
+\t   ],
+\t   "sportName": "Soccer",
+\t   "isLive": true,
+\t   "createdAt": "2025-03-13T12:36:03.395778477Z"
+    }
+]
