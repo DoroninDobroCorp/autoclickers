@@ -1,0 +1,12 @@
+[
+  "bookmakers/1win/robin",
+  "bookmakers/1win/robin/onewin_automation",
+  "bookmakers/1win/robin/scripts",
+  "bookmakers/bcgame/robin",
+  "bookmakers/betfair/robin-exchange",
+  "bookmakers/betfair/robin-sportsbook",
+  "bookmakers/ladbrokes/robin",
+  "bookmakers/paddy-power/robin",
+  "core/python/arb-runner",
+  "core/python/robin-placement"
+]

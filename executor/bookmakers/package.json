@@ -1,0 +1,35 @@
+{
+  "name": "autobetting-bookmakers",
+  "version": "1.0.0",
+  "description": "Bookmaker drivers for autobetting system",
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest --testPathIgnorePatterns=integration.test.js",
+    "test:integration": "jest --testNamePattern='integration' --runInBand",
+    "test:sansabet": "jest bookmakers/sansabet --runInBand",
+    "test:sansabet:unit": "jest bookmakers/sansabet --testPathIgnorePatterns=integration",
+    "test:hatbet": "jest bookmakers/hatbet --runInBand",
+    "test:hatbet:unit": "jest bookmakers/hatbet --testPathIgnorePatterns=integration.test.js",
+    "test:hatbet:integration": "jest bookmakers/hatbet/__tests__/integration.test.js --runInBand",
+    "test:hatbet:all": "npm run test:hatbet:unit && npm run test:hatbet:integration",
+    "test:lobbet": "jest bookmakers/lobbet --runInBand",
+    "test:lobbet:unit": "jest bookmakers/lobbet --testPathIgnorePatterns=integration.test.js",
+    "test:lobbet:integration": "jest bookmakers/lobbet/__tests__/integration.test.js --runInBand",
+    "test:lobbet:all": "npm run test:lobbet:unit && npm run test:lobbet:integration",
+    "test:all": "jest --runInBand",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "betting",
+    "automation",
+    "bookmakers"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "dotenv": "^17.2.3",
+    "jest": "^30.2.0"
+  }
+}

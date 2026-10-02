@@ -3,3 +3,17 @@ autoclicker_ladbrokes 2/app/autoclicker-vision-api-4b9b14b25591.json
 autoclicker_sansa/app/vovkaproject-1c326021c3bf.json
 !!!autoclicker_matathon 2/app/developmenttest-455119-27cba0a88bfd.json
 !!!autoclicker_matathon 3/app/vovkaproject-1c326021c3bf.json
+
+node_modules/
+__pycache__/
+.env
+*.session
+state/
+session-state.json
+*.lock
+!package-lock.json
+
+.DS_Store
+bet_tasks.json
+session-state*.json
+.bettor_*
