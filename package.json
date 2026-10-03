@@ -12,6 +12,8 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "playwright": "^1.63.0",
+    "socks-proxy-agent": "^10.1.0",
+    "undici": "^7.30.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {

@@ -17,3 +17,7 @@ session-state.json
 bet_tasks.json
 session-state*.json
 .bettor_*
+
+# Product state belongs outside common source.
+**/.bet_counters.json
+**/.bet_counters.json.*.tmp
