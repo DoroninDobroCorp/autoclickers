@@ -18,12 +18,7 @@ const path = require('path');
 
 // Bookmaker chat IDs for separate notification groups
 // Fallback to main group if bookmaker-specific chat not accessible
-const BOOKMAKER_CHAT_IDS = {
-  'Volcano': -1003258349845,
-  'Sansabet': -1003258349845,
-  'Zlatnik': -1003258349845,
-  'Lobbet': -1003258349845
-};
+const BOOKMAKER_CHAT_IDS = {}; // Targets are supplied by the consuming product.
 
 // Bookmaker code prefixes for hashtags
 const BOOKMAKER_CODES = {
@@ -50,8 +45,7 @@ function getSportEmoji(sportName) {
   return '⚽';
 }
 
-// Path to persistent bet counters
-const BET_COUNTERS_FILE = path.join(__dirname, '../../.bet_counters.json');
+// No process-global ledger or source-tree state: each product supplies its runtime directory.
 
 function normalizeChatIdList(chatIds = []) {
   const seen = new Set();
@@ -70,6 +64,8 @@ function normalizeChatIdList(chatIds = []) {
 
 class TelegramNotifier {
   constructor(config = {}) {
+    const runtimeRoot = config.runtimeRoot || process.env.AUTOMATION_RUNTIME_ROOT;
+    this.countersFile = config.countersFile || process.env.AUTOMATION_COUNTERS_FILE || (runtimeRoot ? path.join(runtimeRoot, ".bet_counters.json") : null);
     this.enabled = !!(config.botToken && config.logsChatId);
     if (!this.enabled) {
       this.botToken = config.botToken || '';
@@ -100,9 +96,10 @@ class TelegramNotifier {
    * @private
    */
   _loadBetCounters() {
+    if (!this.countersFile) return {};
     try {
-      if (fsSync.existsSync(BET_COUNTERS_FILE)) {
-        return JSON.parse(fsSync.readFileSync(BET_COUNTERS_FILE, 'utf8'));
+      if (fsSync.existsSync(this.countersFile)) {
+        return JSON.parse(fsSync.readFileSync(this.countersFile, 'utf8'));
       }
     } catch (e) {
       console.warn('Failed to load bet counters, starting fresh:', e.message);
@@ -116,12 +113,13 @@ class TelegramNotifier {
    * @private
    */
   _saveBetCounters() {
+    if (!this.countersFile) return;
     try {
       // Re-read file to merge with other services' data
       let existing = {};
-      if (fsSync.existsSync(BET_COUNTERS_FILE)) {
+      if (fsSync.existsSync(this.countersFile)) {
         try {
-          existing = JSON.parse(fsSync.readFileSync(BET_COUNTERS_FILE, 'utf8'));
+          existing = JSON.parse(fsSync.readFileSync(this.countersFile, 'utf8'));
         } catch (e) {
           // File corrupted, start fresh
         }
@@ -135,9 +133,10 @@ class TelegramNotifier {
       this.betCounters = merged;
       // F1 (review_13): atomic write via tmp + rename so mid-write SIGKILL
       // cannot truncate the shared counters file.
-      const tmpPath = BET_COUNTERS_FILE + '.tmp';
-      fsSync.writeFileSync(tmpPath, JSON.stringify(merged, null, 2));
-      fsSync.renameSync(tmpPath, BET_COUNTERS_FILE);
+      fsSync.mkdirSync(path.dirname(this.countersFile), { recursive: true, mode: 0o700 });
+      const tmpPath = this.countersFile + '.' + process.pid + '.tmp';
+      fsSync.writeFileSync(tmpPath, JSON.stringify(merged, null, 2), { mode: 0o600 });
+      fsSync.renameSync(tmpPath, this.countersFile);
     } catch (e) {
       console.error('Failed to save bet counters:', e.message);
     }
