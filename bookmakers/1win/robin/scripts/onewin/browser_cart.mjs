@@ -86,7 +86,9 @@ export class OneWinDryRunCart {
       if (await cancelled()) throw new Error('CANCELLED');
       await phase('exact_selection',async()=>{
         const title = this.page.getByText(selection.market_name,{exact:true}).filter({visible:true});
-        const group = title.locator('xpath=ancestor::div[.//button[.//span[starts-with(@class,"_cf_")]]][1]');
+        // Ignore navigation tabs with the same title. Only an actual market
+        // group may contribute its exact outcome buttons.
+        const group = title.locator('xpath=ancestor::*[@data-scope="ListGroup"][1]');
         const button = group.getByRole('button').filter({has:this.page.getByText(plan.ui_selection_name,{exact:true})});
         await button.first().waitFor({state:'visible',timeout:8000});
         // Several full market groups can share their displayed title. The

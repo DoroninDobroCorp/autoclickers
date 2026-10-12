@@ -8,8 +8,8 @@ const browser = await chromium.launch({ headless: true,
 const plan = { ok: true, selection: { event_id: '40021999',
   event_url: 'https://1win.pro/betting/match/sport/40021999', market_name: 'Total', price: 1.87 },
   ui_selection_name: 'Under 60.5' };
-function group(label, price = '1.87') {
-  return `<div data-scope="ListGroup"><h2>Total</h2><button onclick="pick()"><span class="_name_">${label}</span><span class="_cf_">${price}</span></button></div>`;
+function group(label, price = '1.87', title = 'Total') {
+  return `<div data-scope="ListGroup"><h2>${title}</h2><button onclick="pick()"><span class="_name_">${label}</span><span class="_cf_">${price}</span></button></div>`;
 }
 function html(groups) {
   return `<html><body>${groups}<aside><h2>Betslip</h2><div id="coupon">Select an outcome</div></aside>
@@ -43,5 +43,8 @@ try {
   const drift = await run(group('Under 60.5', '1.99'));
   assert.equal(drift.result.ok, false, 'changed source price must not prepare a stale plan');
   assert.equal(drift.clicks, 0);
-  console.log('3 browser cart regressions passed: unique title, duplicate outcome, changed price');
+  const navigation = await run(`<div><nav><span>Total</span></nav>${group('Under 60.5', '1.87', '1st half. Total')}</div>`);
+  assert.equal(navigation.result.ok, false, 'a navigation tab must never authorize a different period market');
+  assert.equal(navigation.clicks, 0);
+  console.log('4 browser cart regressions passed: unique title, duplicate outcome, changed price, navigation scope');
 } finally { await browser.close(); }
