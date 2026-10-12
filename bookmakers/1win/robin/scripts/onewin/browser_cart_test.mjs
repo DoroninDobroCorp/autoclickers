@@ -46,5 +46,30 @@ try {
   const navigation = await run(`<div><nav><span>Total</span></nav>${group('Under 60.5', '1.87', '1st half. Total')}</div>`);
   assert.equal(navigation.result.ok, false, 'a navigation tab must never authorize a different period market');
   assert.equal(navigation.clicks, 0);
-  console.log('4 browser cart regressions passed: unique title, duplicate outcome, changed price, navigation scope');
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let requestsReachingFixture = 0;
+  await page.route('**/*', route => {
+    requestsReachingFixture++;
+    return route.fulfill({ contentType: 'text/html', body: html('') });
+  });
+  await page.goto(plan.selection.event_url);
+  const guardedCart = new OneWinDryRunCart(page);
+  await guardedCart.installGuard();
+  await context.setOffline(true);
+  for (const path of ['/bets/make-bet-v2', '/bets/refund']) {
+    const status = await page.evaluate(async url => {
+      try { await fetch(url, { method: 'POST', body: '{}' }); return 'sent'; }
+      catch { return 'aborted'; }
+    }, path);
+    assert.equal(status, 'aborted', `the real mutation endpoint ${path} must be blocked`);
+    assert.ok(guardedCart.blocked.includes(path), 'the cart guard itself must reject the mutation');
+  }
+  const lookupStatus = await page.evaluate(async () =>
+    (await fetch('/bets/get-max-bet-amount', { method: 'POST', body: '{}' })).status);
+  assert.equal(lookupStatus, 200, 'the read-only market limit lookup must remain available');
+  assert.equal(requestsReachingFixture, 2, 'only navigation and the read-only lookup reach the fixture');
+  assert.equal(guardedCart.blocked.length, 2);
+  await context.close();
+  console.log('5 browser cart regressions passed: unique title, duplicate outcome, changed price, navigation scope, mutation guard');
 } finally { await browser.close(); }

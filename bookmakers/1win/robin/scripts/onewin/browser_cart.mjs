@@ -27,11 +27,13 @@ export class OneWinDryRunCart {
     await this.page.route('**/*', async route => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
-      if (request.method() === 'POST' && /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager)/i.test(path)) {
+      const mutatesCoupon = /\/bets\/(?:make-bet(?:-v\d+)?|refund)(?:\/|$)/i.test(path)
+        || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager)/i.test(path);
+      if (request.method() === 'POST' && mutatesCoupon) {
         this.blocked.push(path);
         return route.abort();
       }
-      return route.continue();
+      return route.fallback();
     });
     // Defense in depth against accidental submit clicks in this test page.
     const preventSubmit = () => document.addEventListener('click', e => {
