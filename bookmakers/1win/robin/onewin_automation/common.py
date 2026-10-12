@@ -62,6 +62,12 @@ def task_from_value(pair:dict[str,Any], outcome:dict[str,Any], *, stake:float, i
         price=quote.get('odds')
         if isinstance(price,bool) or not isinstance(price,(int,float)) or not math.isfinite(price) or price<=1 or price!=score.get('value'):
             raise CommonTaskError('selected price mismatch')
+    roi_basis=outcome.get('roi_basis','unknown')
+    margin_basis=outcome.get('margin_basis','unknown')
+    if roi_basis not in {'unknown','non_void_stake.v1'} or margin_basis not in {'unknown','outcome_partition','non_void_exposure'}:
+        raise CommonTaskError('unknown valuation basis')
+    if margin_basis=='non_void_exposure' and roi_basis!='non_void_stake.v1':
+        raise CommonTaskError('conditional value requires explicit exposure basis')
     ttl=5 if pair.get('isLive') else 60
     clocks=[]
     for quote in [ref,donor,*margins]:
@@ -75,6 +81,7 @@ def task_from_value(pair:dict[str,Any], outcome:dict[str,Any], *, stake:float, i
             'outcome_key':outcome['outcome'],'reference_source':'BIA','reference_role':'reference',
             'pinnacle_attributed':False,'donor_source':'1win','quote':dict(donor),
             'reference_quote':dict(ref),'margin_quotes':list(margins),'stake':stake,
+            'valuation_basis':{'roi_basis':roi_basis,'margin_basis':margin_basis},
             'expires_at':min(clocks)+ttl,'execution_ready':False,'execution_blockers':['executor_identity_and_conditions_unverified']}
 
 class DurableDryRunStore:

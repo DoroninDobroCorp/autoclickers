@@ -2,10 +2,10 @@ import tempfile
 import unittest
 from onewin_automation.common import CommonTaskError,DurableDryRunStore,task_from_value
 class CommonTaskTests(unittest.TestCase):
- def task(self):
+ def task(self,**basis):
   q={'source':'1win','source_event_key':'d','source_market':'T> 2.5','odds':2.2,'source_ts':1000}
   r={**q,'source':'BIA','source_event_key':'r','odds':2}
-  return task_from_value({'event_id':'canonical','isLive':True,'first':{'bookmaker':'BIA','matchId':'r'},'second':{'bookmaker':'1win','matchId':'d'}},{'outcome':'T> 2.5','score1':{'value':2},'score2':{'value':2.2},'reference_quote':r,'donor_quote':q,'margin_quotes':[r]},stake=10,idempotency_key='key',now=1001)
+  return task_from_value({'event_id':'canonical','isLive':True,'first':{'bookmaker':'BIA','matchId':'r'},'second':{'bookmaker':'1win','matchId':'d'}},{**basis,'outcome':'T> 2.5','score1':{'value':2},'score2':{'value':2.2},'reference_quote':r,'donor_quote':q,'margin_quotes':[r]},stake=10,idempotency_key='key',now=1001)
  def test_bia_identity_and_expiration_preserved(self):
   task=self.task();self.assertEqual(task['expires_at'],1005);self.assertFalse(task['pinnacle_attributed']);self.assertFalse(task['execution_ready'])
  def test_duplicate_and_withdrawal_survive_process_restart(self):
@@ -20,6 +20,14 @@ class CommonTaskTests(unittest.TestCase):
    with self.assertRaises(CommonTaskError):a.prepare(changed,now=1001)
    with self.assertRaises(CommonTaskError):a.prepare(task,now=1005)
    a.close()
+
+ def test_refund_roi_basis_reaches_durable_task_without_recalculation(self):
+  task=self.task(roi_basis='non_void_stake.v1',margin_basis='non_void_exposure')
+  self.assertEqual(task['valuation_basis'],{'roi_basis':'non_void_stake.v1','margin_basis':'non_void_exposure'})
+  self.assertFalse(task['execution_ready'])
+ def test_conflicting_or_unknown_roi_basis_cannot_be_relabelled(self):
+  for basis in [dict(margin_basis='non_void_exposure'),dict(roi_basis='placed_stake',margin_basis='non_void_exposure'),dict(margin_basis='unknown_basis')]:
+   with self.assertRaises(CommonTaskError):self.task(**basis)
 
 class JevBridgeTests(unittest.IsolatedAsyncioTestCase):
  async def test_model_pass_cannot_verify_execution_or_revive_expired_task(self):
