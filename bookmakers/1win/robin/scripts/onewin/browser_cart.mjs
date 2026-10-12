@@ -88,10 +88,16 @@ export class OneWinDryRunCart {
         const title = this.page.getByText(selection.market_name,{exact:true}).filter({visible:true});
         const group = title.locator('xpath=ancestor::div[.//button[.//span[starts-with(@class,"_cf_")]]][1]');
         const button = group.getByRole('button').filter({has:this.page.getByText(plan.ui_selection_name,{exact:true})});
-        await button.waitFor({state:'visible',timeout:8000});
-        if (await group.count() !== 1 || await button.count() !== 1) throw new Error('AMBIGUOUS_EXACT_OUTCOME');
+        await button.first().waitFor({state:'visible',timeout:8000});
+        // Several full market groups can share their displayed title. The
+        // exact selection within those groups must still be unique. This
+        // prepares a read-only coupon; it does not certify execution IDs.
+        if (await button.count() !== 1) throw new Error('AMBIGUOUS_EXACT_OUTCOME');
+        result.market_title_candidates = await group.count();
         result.board_price = parseAmount(await button.locator('span[class^="_cf_"]').innerText());
         if (!(result.board_price > 1)) throw new Error('INVALID_BOARD_PRICE');
+        if (selection.price !== undefined && (!Number.isFinite(selection.price)
+          || selection.price <= 1 || selection.price !== result.board_price)) throw new Error('BOARD_PRICE_CHANGED');
         await button.click({timeout:5000});
       });
       await phase('basket_readback',async()=>{
