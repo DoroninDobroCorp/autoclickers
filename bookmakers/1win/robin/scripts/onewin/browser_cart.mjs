@@ -1,6 +1,12 @@
 // Authenticated, DOM-only prepare-and-clear. Intentionally no place() method.
 export function parseAmount(text) {
-  const value = Number(String(text).replace(/[^\d.,-]/g, '').replace(',', '.'));
+  let numeric = String(text).trim().replace(/^[A-Z]{3,6}\s+/i, '').trim();
+  // The English coupon masks 9999 as "USDT 9,999.00". Commas in a
+  // correctly grouped number are thousands separators, not decimal points.
+  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(numeric)) numeric = numeric.replaceAll(',', '');
+  else if (/^-?\d+,\d{1,2}$/.test(numeric)) numeric = numeric.replace(',', '.');
+  else if (!/^-?\d+(?:\.\d+)?$/.test(numeric)) return null;
+  const value = Number(numeric);
   return Number.isFinite(value) ? value : null;
 }
 
