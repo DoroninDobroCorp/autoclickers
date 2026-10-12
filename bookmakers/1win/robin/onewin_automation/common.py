@@ -121,9 +121,10 @@ def verify_executor_quote(task,quote,*,now):
     # A parser snapshot cannot self-certify bookmaker execution identity.
     if quote.get('identity_verified_by')!='onewin-executor' or quote.get('verified') is not True:
         raise CommonTaskError('independent executor verification required')
-    if any(not quote.get(k) for k in ('native_event_id','native_market_id','native_selection_id','currency')):
+    if any(not isinstance(quote.get(k),str) or not quote[k] for k in ('native_event_id','native_market_id','native_selection_id','currency')):
         raise CommonTaskError('execution identity and currency required')
-    if str(quote['native_event_id'])!=str(expected['source_event_key']) or quote.get('source_market')!=expected['source_market'] or quote.get('odds')!=expected['odds']:
+    if (quote.get('provider_id_namespace')!='top-parser:1win' or quote.get('provider_event_key')!=str(expected['source_event_key'])
+            or quote.get('source_market')!=expected['source_market'] or quote.get('odds')!=expected['odds']):
         raise CommonTaskError('executor quote differs from signal')
     if confirmed(quote)>now or now-confirmed(quote)>=(5 if task['is_live'] else 60):raise CommonTaskError('executor quote expired')
     commission=quote.get('commission');limit=quote.get('max_stake')
@@ -144,3 +145,26 @@ def jev_review_payload(task, executor_evidence=None):
                 'options':{'PASS':'All supplied evidence is consistent for dry-run review only.',
                            'INVESTIGATE':'Required evidence is absent or ambiguous.',
                            'FAIL':'Supplied evidence contradicts the requested task.'}}}}
+
+async def review_with_jev(task, client, question_factory, *, clock):
+    """Use the existing injected Jev client; model advice never arms execution."""
+    if task.get('mode')!='dry_run' or task.get('execution_ready') is not False:
+        raise CommonTaskError('dry-run task required for Jev review')
+    if clock()>=task['expires_at']:raise CommonTaskError('expired task before review')
+    payload=jev_review_payload(task)
+    questions={key:question_factory(prompt=value['prompt'],options=value['options'])
+               for key,value in payload['questions'].items()}
+    try:
+        result=await client.system_one(payload['state'],questions)
+        answer=result.choices.get('decision')
+        decision=getattr(answer,'choice',None);confidence=getattr(answer,'confidence',None)
+        if (decision not in {'PASS','INVESTIGATE','FAIL'} or isinstance(confidence,bool)
+                or not isinstance(confidence,(int,float)) or not math.isfinite(confidence) or not 0<=confidence<=1):
+            raise CommonTaskError('invalid Jev decision')
+        if clock()>=task['expires_at']:raise CommonTaskError('expired task after review')
+        return {'schema_version':'automation-review.v1','status':decision,'execution_ready':False,
+                'prompt_version':'common-quote-review/2026-10-12','provider':'jev-typesafe',
+                'model':getattr(result,'model',''),'confidence':confidence,'confidence_is_calibrated':False}
+    except Exception as exc:
+        return {'schema_version':'automation-review.v1','status':'INVESTIGATE','execution_ready':False,
+                'reason':'review_unavailable_or_invalid','error_type':type(exc).__name__}

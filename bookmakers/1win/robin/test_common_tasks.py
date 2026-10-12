@@ -20,3 +20,17 @@ class CommonTaskTests(unittest.TestCase):
    with self.assertRaises(CommonTaskError):a.prepare(changed,now=1001)
    with self.assertRaises(CommonTaskError):a.prepare(task,now=1005)
    a.close()
+
+class JevBridgeTests(unittest.IsolatedAsyncioTestCase):
+ async def test_model_pass_cannot_verify_execution_or_revive_expired_task(self):
+  from types import SimpleNamespace
+  from onewin_automation.common import review_with_jev
+  class Client:
+   async def system_one(self,state,questions):
+    return SimpleNamespace(choices={'decision':SimpleNamespace(choice='PASS',confidence=.9)},model='test-model')
+  task=CommonTaskTests().task()
+  result=await review_with_jev(task,Client(),lambda **kw:kw,clock=lambda:1001)
+  self.assertEqual(result['status'],'PASS');self.assertFalse(result['execution_ready'])
+  instants=iter([1001,1006])
+  result=await review_with_jev(task,Client(),lambda **kw:kw,clock=lambda:next(instants))
+  self.assertEqual(result['status'],'INVESTIGATE');self.assertFalse(result['execution_ready'])
