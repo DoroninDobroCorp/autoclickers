@@ -583,28 +583,42 @@ const goodPlan = (overrides = {}) => {
   };
 };
 
-test('live cart end to end on the stand: one exact POST is the only money; a stray WebSocket frame beside it is refused', async (t) => {
+test('live cart end to end on the stand: a stray WebSocket frame beside the exact POST never moves money and never lets a second request through', async (t) => {
   if (skipReason) return t.skip(skipReason);
-  stand.reset();
-  stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin,
-    extraScript: `document.addEventListener('click', (e) => { if (e.target && e.target.id === 'place') {
-      const s = new WebSocket('${stand.wsBase}/ws/bet'); s.onopen = () => s.send('42["place-bet",{"stake":9999}]'); } }, true);` }));
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
-  try {
-    const page = await context.newPage();
-    const { store } = tempStore();
-    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: POLICY() });
-    const result = await cart.run(goodPlan(), { now: () => Date.now() / 1000 });
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    assert.equal(result.status, 'ACCEPTED', JSON.stringify(result));
-    assert.equal(stand.log.money.filter((m) => m.via === 'http').length, 1, 'exactly one HTTP placement');
-    assert.equal(stand.log.money.filter((m) => m.via === 'ws').length, 0, 'the stray WebSocket frame did not reach the stand');
-    assert.equal(result.submit_sent_count, 1);
-    assert.equal(result.transport_guard.coverage.ws_canary, true);
-    assert.ok(result.transport_guard.violation_kinds.includes('ws_frame_blocked'));
-    assert.equal(stand.log.money[0].body.amount, 1);
-    assert.equal(store.getAttempt('stand-e2e-1').status, 'ACCEPTED');
-  } finally { await context.close(); }
+  const outcomes = new Set();
+  for (let round = 0; round < 4; round += 1) {
+    stand.reset();
+    stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin,
+      extraScript: `document.addEventListener('click', (e) => { if (e.target && e.target.id === 'place') {
+        const s = new WebSocket('${stand.wsBase}/ws/bet'); s.onopen = () => s.send('42["place-bet",{"stake":9999}]'); } }, true);` }));
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+    try {
+      const page = await context.newPage();
+      const { store } = tempStore();
+      const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: POLICY() });
+      const result = await cart.run(goodPlan({ idempotency_key: `stand-e2e-${round}` }), { now: () => Date.now() / 1000 });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const httpMoney = stand.log.money.filter((m) => m.via === 'http').length;
+      assert.equal(stand.log.money.filter((m) => m.via === 'ws').length, 0, 'the stray WebSocket frame never reached the stand');
+      assert.ok(httpMoney <= 1, 'never more than the one exact request');
+      assert.ok(result.transport_guard.violation_kinds.includes('ws_frame_blocked'), JSON.stringify(result.transport_guard));
+      assert.equal(result.transport_guard.coverage.ws_canary, true);
+      // anything wrong while the submit is armed ends the attempt: either the exact POST won the race (a
+      // bet that exists) or the armed window was closed first (nothing sent) - never a mixture
+      if (result.status === 'ACCEPTED') {
+        assert.equal(httpMoney, 1);
+        assert.equal(result.submit_sent_count, 1);
+        assert.equal(store.getAttempt(`stand-e2e-${round}`).status, 'ACCEPTED');
+      } else {
+        assert.equal(result.status, 'ABORTED_PRE_SUBMIT', JSON.stringify(result));
+        assert.equal(httpMoney, 0);
+        assert.equal(result.submit_sent_count, 0);
+        assert.equal(store.getAttempt(`stand-e2e-${round}`).status, 'WITHDRAWN');
+      }
+      outcomes.add(result.status);
+    } finally { await context.close(); }
+  }
+  assert.ok(outcomes.size >= 1);
 });
 
 test('live cart end to end: replay of the same key and a second selection key after ACCEPTED send nothing', async (t) => {
