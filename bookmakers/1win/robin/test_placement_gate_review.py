@@ -109,6 +109,23 @@ class DiagnosticGateNeedsAVerifiedOrder(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(attempt["status"], "WITHDRAWN")
         self.assertIn("EXPIRED", attempt["error"].upper())
 
+    async def test_attempt_carries_the_native_identity_of_the_order(self):
+        payload = self.payload()
+        for field in ("event_id", "market_id", "selection_id", "expected_odds"):
+            payload.pop(field)
+        await self.gate(Clock(1001.0)).place(payload)
+        attempt = self.store.get_attempt("gate-order-1")
+        self.assertEqual((attempt["event_id"], attempt["market_id"], attempt["selection_id"]),
+                         ("40021999", "6271", "10:193671744120169820:0"))
+        self.assertEqual(attempt["expected_odds"], 1.87)
+        # a second intent on the same native selection cannot be placed
+        second = self.payload(idempotency_key="gate-order-2", order={**ORDER, "idempotency_key": "gate-order-2"})
+        for field in ("event_id", "market_id", "selection_id", "expected_odds"):
+            second.pop(field)
+        with self.assertRaises(BasketValidationError):
+            await self.gate(Clock(1001.0)).place(second)
+        self.assertEqual(len(self.calls), 1)
+
     async def test_legacy_gate_without_the_option_keeps_its_behaviour(self):
         legacy = PlacementGate(enabled=True, config=OneWinAutomationConfig(live_enabled=True, max_stake=5.0),
                                transport=self.transport, attempt_store=self.store, max_stake=5.0)

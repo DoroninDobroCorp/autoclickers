@@ -220,6 +220,13 @@ class PlacementGate:
         normalized = dict(payload)
         normalized["stake"] = stake_val
         normalized["currency"] = currency
+        if order is not None:
+            # The attempt must always carry the native identity the order was verified for,
+            # so that the store can refuse a second intent on the same selection.
+            for field in ("event_id", "market_id", "selection_id"):
+                normalized.setdefault(field, order[field])
+            if "expected_odds" not in normalized and "odds" not in normalized:
+                normalized["expected_odds"] = order["odds"]
 
         # 4. Atomic claim with full metadata
         try:
