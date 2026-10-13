@@ -102,6 +102,7 @@ async def main() -> int:
     parser.add_argument("--outcome", default="P1 T< 1")
     parser.add_argument("--event-index", type=int, default=0, help="which event of the frame carries the outcome")
     parser.add_argument("--real-jev", action="store_true", help="one call through the real gateway (advice only)")
+    parser.add_argument("--jev-source", help="path of a copy of dev:/srv/jev/netlify/functions/jev.ts: run its REAL code in an isolated instance (SDK stubbed)")
     parser.add_argument("--skip-slow", action="store_true", help="skip the 18 s response-timeout scenario")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -285,6 +286,63 @@ async def main() -> int:
         finally:
             await close_shared_http_client()
     gateway.close()
+
+    # the REAL gateway function (auth, validation, mapping) in an isolated instance with a stubbed SDK
+    if args.jev_source:
+        runner = HERE / "jev_gateway_isolated.mjs"
+
+        def start_gateway(mode: str):
+            proc = subprocess.Popen([NODE, "--experimental-strip-types", str(runner), "--source", args.jev_source, "--token", "iso-token",
+                                     "--mode", mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            line = proc.stdout.readline()
+            return proc, json.loads(line)["port"]
+
+        report["jev_gateway_source"] = {"path_basename": Path(args.jev_source).name,
+                                        "sha256": hashlib.sha256(Path(args.jev_source).read_bytes()).hexdigest(),
+                                        "stubbed": "TypeSafe SDK (no model, no credential)"}
+        procs = []
+        try:
+            for mode in ("ok", "api502", "sdk_error"):
+                proc, port = start_gateway(mode)
+                procs.append(proc)
+                url = f"http://127.0.0.1:{port}/api/jev"
+                jev_module._auth_failed = False
+                try:
+                    jev_results[f"isolated_real_code_{mode}"] = await review_with_jev(
+                        copy.deepcopy(base_task), GatewayJevClient(url=url, token="iso-token", timeout_ms=3000), JevChoice,
+                        clock=lambda: replay_now + 0.3)
+                finally:
+                    await close_shared_http_client()
+                if mode == "ok":
+                    jev_module._auth_failed = False
+                    try:
+                        jev_results["isolated_real_code_wrong_token"] = await review_with_jev(
+                            copy.deepcopy(base_task), GatewayJevClient(url=url, token="nope", timeout_ms=3000), JevChoice, clock=lambda: replay_now + 0.3)
+                    finally:
+                        await close_shared_http_client()
+                    jev_module._auth_failed = False
+                    huge = copy.deepcopy(base_task)
+                    huge["padding"] = "x" * (1_200_000)
+                    try:
+                        jev_results["isolated_real_code_payload_over_1mb"] = await review_with_jev(
+                            huge, GatewayJevClient(url=url, token="iso-token", timeout_ms=5000), JevChoice, clock=lambda: replay_now + 0.3)
+                    finally:
+                        await close_shared_http_client()
+        finally:
+            for proc in procs:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    proc.kill()
+        jev_module._auth_failed = False
+        iso = {k: v for k, v in jev_results.items() if k.startswith("isolated_real_code_")}
+        checks["isolated_real_gateway_code_answers_advice_only"] = (
+            iso["isolated_real_code_ok"]["status"] == "INVESTIGATE" and iso["isolated_real_code_ok"]["execution_ready"] is False
+            and iso["isolated_real_code_ok"].get("reason") is None)
+        checks["isolated_real_gateway_code_failures_degrade_to_investigate"] = all(
+            iso[m]["status"] == "INVESTIGATE" and iso[m].get("reason") == "review_unavailable_or_invalid"
+            for m in ("isolated_real_code_wrong_token", "isolated_real_code_payload_over_1mb", "isolated_real_code_api502", "isolated_real_code_sdk_error"))
     report["jev"] = jev_results
     checks["jev_never_arms_execution_in_any_mode"] = all(r.get("execution_ready") is False for r in jev_results.values())
     checks["jev_unavailable_modes_degrade_to_investigate"] = all(
@@ -378,38 +436,49 @@ async def main() -> int:
         checks["live_ttl_is_five_seconds_from_source"] = False
 
     # =========================================================================== 4. executor in a real browser
-    order = verify_live_execution_conditions(task, completed, account, now=at, diagnostic_only=True)
-    plan = cart_plan_from_order(order, event_url=f"https://1win.pro/betting/match/sport/{order['event_id']}",
-                                market_name="1st half. Total", ui_selection_name="Under 1")
-    report["order"] = {"idempotency_key": order["idempotency_key"], "event_id": order["event_id"], "market_id": order["market_id"],
-                       "selection_id": order["selection_id"], "odds": order["odds"], "stake": order["stake"], "currency": order["currency"],
-                       "evidence_expiries": order["evidence"]["expiries"], "settlement_facts": order["settlement_facts"],
-                       "expires_at": order["expires_at"]}
-    checks["order_identity_equals_queue_identity"] = order["idempotency_key"] == key and plan["idempotency_key"] == key
+    from types import SimpleNamespace
     clock_start = replay_now + 1.0
+    market_name, ui_selection_name = "1st half. Total", "Under 1"
 
-    def fresh_case(name: str):
+    def build_case(name: str):
+        """One queue item -> task -> verified order -> plan, per case: the identity is the item's own."""
         d = work / name
         d.mkdir()
-        q = str(d / "tasks.json")
-        node("queue-add", ["--file", q], {"pair": pair, "outcome": outcome, "stake": 1})
-        return q, str(d / "attempts.json")
+        qfile = str(d / "tasks.json")
+        node("queue-add", ["--file", qfile], {"pair": pair, "outcome": outcome, "stake": 1})
+        case_item = node("queue-current", ["--file", qfile])["item"]
+        case_task = common_task_from_queue_item(case_item, stake=1.0, stake_currency="USDT", now=replay_now)
+        case_order = verify_live_execution_conditions(case_task, executor_quote(case_task, at=replay_now + 0.2),
+                                                      account_state(replay_now + 0.2), now=replay_now + 0.5, diagnostic_only=True)
+        case_plan = cart_plan_from_order(case_order, event_url=f"https://1win.pro/betting/match/sport/{case_order['event_id']}",
+                                         market_name=market_name, ui_selection_name=ui_selection_name)
+        return SimpleNamespace(qfile=qfile, sfile=str(d / "attempts.json"), item=case_item, task=case_task, order=case_order,
+                               plan=case_plan, key=case_task["idempotency_key"], qid=case_item["id"])
 
-    def consume(qf, sf, scenario=None, *, plan_obj=None, allow_failure=False, timeout=120):
-        return node("consume", ["--file", qf], {"plan": plan_obj or plan, "store_path": sf, "clock_start": clock_start,
-                                                "scenario": scenario or {}}, timeout=timeout, allow_failure=allow_failure)
+    def consume(case, scenario=None, *, plan_obj=None, allow_failure=False, timeout=120, clock=None):
+        return node("consume", ["--file", case.qfile], {"plan": plan_obj or case.plan, "store_path": case.sfile,
+                                                         "clock_start": clock if clock is not None else clock_start,
+                                                         "scenario": scenario or {}}, timeout=timeout, allow_failure=allow_failure)
 
-    def exported(sf, k, qid):
-        attempt = node("store-read", ["--store", sf, "--key", k])["attempt"]
-        return attempt, export_attempt_receipt(attempt, transport_environment="local_stand", queue_task_id=qid)
+    def exported(case):
+        attempt = node("store-read", ["--store", case.sfile, "--key", case.key])["attempt"]
+        return attempt, export_attempt_receipt(attempt, transport_environment="local_stand")
 
     scenarios = report["scenarios"]
 
     # 4.1 accepted once, identity everywhere
-    qf, sf = fresh_case("accept")
-    qid = node("queue-current", ["--file", qf])["item"]["id"]
-    run = consume(qf, sf)
-    att, exp = exported(sf, key, qid)
+    case = build_case("accept")
+    order, plan = case.order, case.plan
+    report["order"] = {"idempotency_key": order["idempotency_key"], "event_id": order["event_id"], "market_id": order["market_id"],
+                       "selection_id": order["selection_id"], "odds": order["odds"], "stake": order["stake"], "currency": order["currency"],
+                       "purpose": order["purpose"], "correlation": order["correlation"], "source_quotes": order["source_quotes"],
+                       "evidence_expiries": order["evidence"]["expiries"], "settlement_facts": order["settlement_facts"],
+                       "expires_at": order["expires_at"]}
+    checks["order_identity_equals_queue_item_identity"] = (
+        order["idempotency_key"] == case.key == plan["idempotency_key"] == queue_item_identity(case.item)
+        and order["correlation"]["queue_task_id"] == case.qid)
+    run = consume(case)
+    att, exp = exported(case)
     body = (run["stand"]["bodies"] or [None])[0] or {}
     scenarios["accept"] = {"result": run["result"], "attempt_status": att["status"], "stand_money_requests": run["stand"]["money_requests"],
                            "request": body, "queue_write_back": run["queue_write_back"], "export": exp}
@@ -419,15 +488,21 @@ async def main() -> int:
         and body.get("amount") == order["stake"] and body.get("currencyCode") == "USDT" and body.get("cf") == order["odds"])
     checks["queue_written_back_and_receipt_export_is_synthetic_pending"] = (
         run["queue_write_back"] is True and exp["synthetic"] is True and exp["settlement"] == "pending"
-        and exp["outcome"] == "accepted" and exp["idempotency_key"] == key and exp["identity"]["selection_id"] == order["selection_id"])
+        and exp["outcome"] == "accepted" and exp["idempotency_key"] == case.key and exp["identity"]["selection_id"] == order["selection_id"])
+    checks["purpose_correlation_and_source_quotes_survive_into_the_durable_attempt_and_export"] = (
+        att["payload"].get("purpose") == "diagnostic_test" and exp["purpose"] == "diagnostic_test"
+        and att["payload"]["correlation"]["queue_task_id"] == case.qid == exp["queue_task_id"]
+        and att["payload"]["source_quotes"]["donor"]["odds"] == donor["odds"]
+        and att["payload"]["source_quotes"]["donor"]["observed_at"] == donor["observed_at"]
+        and exp["source_quotes"]["reference"]["source"] == "BIA")
     checks["transport_guard_coverage_proven_on_the_document_used"] = (
         run["result"]["transport_guard"]["coverage"] is not None and all(run["result"]["transport_guard"]["coverage"].values()))
 
     # 4.2 replay of the same message / second intent after ACCEPTED, in a fresh process
-    replay = consume(qf, sf, allow_failure=True)
-    other = copy.deepcopy(plan)
+    replay = consume(case, allow_failure=True)
+    other = copy.deepcopy(case.plan)
     other["idempotency_key"] = "another-intent-same-selection"
-    second_intent = consume(qf, sf, plan_obj=other, allow_failure=True)
+    second_intent = consume(case, plan_obj=other, allow_failure=True)
     scenarios["replay_same_key_after_accept"] = {"thrown": replay.get("thrown"), "stand_money_requests": replay["stand"]["money_requests"]}
     scenarios["second_intent_same_selection"] = {"thrown": second_intent.get("thrown"), "stand_money_requests": second_intent["stand"]["money_requests"]}
     checks["replay_and_second_intent_send_nothing"] = (
@@ -435,21 +510,20 @@ async def main() -> int:
         and "DUPLICATE_SELECTION_ATTEMPT" in str(second_intent.get("thrown")) and second_intent["stand"]["money_requests"] == 0)
 
     # 4.3 restart after the durable claim, before any request: the process dies, nothing was sent
-    qf, sf = fresh_case("crash_after_claim")
-    crashed = consume(qf, sf, {"crash_after": "PRE_CHECK_PASSED"}, allow_failure=True)
-    survived = node("store-read", ["--store", sf, "--key", key])["attempt"]
-    rerun = consume(qf, sf, allow_failure=True)
+    case = build_case("crash_after_claim")
+    crashed = consume(case, {"crash_after": "PRE_CHECK_PASSED"}, allow_failure=True)
+    survived = node("store-read", ["--store", case.sfile, "--key", case.key])["attempt"]
+    rerun = consume(case, allow_failure=True)
     scenarios["restart_after_durable_claim_before_send"] = {"first_run_returncode": crashed["_returncode"], "attempt_after_crash": survived["status"],
                                                            "rerun_thrown": rerun.get("thrown"), "rerun_stand_money_requests": rerun["stand"]["money_requests"]}
     checks["restart_after_claim_never_sends"] = (crashed["_returncode"] != 0 and survived["status"] == "PRE_CHECK_PASSED"
                                                  and "DUPLICATE_IDEMPOTENCY_KEY" in str(rerun.get("thrown")) and rerun["stand"]["money_requests"] == 0)
 
-    # 4.4 crash after the request reached the bookmaker: outcome unknown, restart never re-sends,
-    #     reconciliation by identity against the bookmaker history
-    qf, sf = fresh_case("crash_after_send")
-    crashed = consume(qf, sf, {"crash_when_stand_receives": True}, allow_failure=True)
-    survived = node("store-read", ["--store", sf, "--key", key])["attempt"]
-    rerun = consume(qf, sf, allow_failure=True)
+    # 4.4 crash after the request reached the bookmaker: outcome unknown, restart never re-sends
+    case = build_case("crash_after_send")
+    crashed = consume(case, {"crash_when_stand_receives": True}, allow_failure=True)
+    survived = node("store-read", ["--store", case.sfile, "--key", case.key])["attempt"]
+    rerun = consume(case, allow_failure=True)
     scenarios["crash_after_request_reached_bookmaker"] = {"first_run_returncode": crashed["_returncode"], "attempt_after_crash": survived["status"],
                                                           "rerun_thrown": rerun.get("thrown"), "rerun_stand_money_requests": rerun["stand"]["money_requests"]}
     checks["crash_after_send_leaves_submitting_and_rerun_refuses"] = (
@@ -458,16 +532,16 @@ async def main() -> int:
 
     # 4.5 unclear result by timeout: INDETERMINATE, no second request, reconcile from history by identity
     if not args.skip_slow:
-        qf, sf = fresh_case("timeout")
-        qid = node("queue-current", ["--file", qf])["item"]["id"]
-        slow = consume(qf, sf, {"delay_ms": 18000}, timeout=150)
+        case = build_case("timeout")
+        slow = consume(case, {"delay_ms": 18000}, timeout=150)
         history = slow["stand"]["history"] or []
         sent_key = (slow["stand"]["bodies"] or [{}])[0].get("idempotencyKey")
-        found = [h for h in history if h.get("idempotencyKey") == sent_key]
-        again = consume(qf, sf, allow_failure=True)
-        reconciled = node("reconcile", [], {"store_path": sf, "key": key, "kind": "receipt_reconciled",
-                                            "data": {"bet_id": found[0]["betId"] if found else None, "source": "stand-history-by-idempotencyKey"}}) if found else None
-        att, exp = exported(sf, key, qid)
+        found = [h for h in history if h.get("idempotencyKey") == sent_key and h.get("oddId") == case.order["selection_id"]]
+        again = consume(case, allow_failure=True)
+        if found:
+            node("reconcile", [], {"store_path": case.sfile, "key": case.key, "kind": "receipt_reconciled",
+                                   "data": {"bet_id": found[0]["betId"], "source": "stand-history-by-idempotencyKey"}})
+        att, exp = exported(case)
         scenarios["timeout_unclear_result"] = {"status": slow["result"]["status"], "attempt_status_before_reconcile": slow["attempt"]["status"],
                                                "stand_money_requests": slow["stand"]["money_requests"], "history_matches": len(found),
                                                "second_run_thrown": again.get("thrown"), "second_run_requests": again["stand"]["money_requests"], "export": exp}
@@ -476,37 +550,38 @@ async def main() -> int:
             and "DUPLICATE_IDEMPOTENCY_KEY" in str(again.get("thrown")) and again["stand"]["money_requests"] == 0
             and exp["outcome"] == "accepted_reconciled" and exp["unresolved"] is False and exp["synthetic"] is True)
 
-    # 4.6 cancelled / withdrawn / expired / replay of a terminal task
-    qf, sf = fresh_case("cancelled_before_consume")
-    qid = node("queue-current", ["--file", qf])["item"]["id"]
-    cancelled = node("queue-cancel", ["--file", qf, "--id", str(qid)])
-    run = consume(qf, sf, allow_failure=True)
-    scenarios["cancelled_in_queue_before_execution"] = {"cancel": cancelled["result"], "thrown": run.get("thrown"),
+    # 4.6 cancelled / withdrawn / expired
+    case = build_case("cancelled_before_consume")
+    cancelled = node("queue-cancel", ["--file", case.qfile, "--id", str(case.qid)])
+    run = consume(case, allow_failure=True)
+    scenarios["cancelled_in_queue_before_execution"] = {"cancel": {"cancelled": cancelled["result"].get("cancelled")}, "thrown": run.get("thrown"),
                                                         "result_status": (run.get("result") or {}).get("status"),
                                                         "stand_money_requests": run["stand"]["money_requests"],
                                                         "attempt_status": (run.get("attempt") or {}).get("status")}
     checks["task_cancelled_in_queue_is_not_executed"] = (
-        run["stand"]["money_requests"] == 0 and (run.get("attempt") or {}).get("status") in ("WITHDRAWN", None)
-        and ((run.get("result") or {}).get("status") == "ABORTED_PRE_SUBMIT" or run.get("thrown")))
+        cancelled["result"].get("cancelled") is True and run["stand"]["money_requests"] == 0
+        and (run.get("attempt") or {}).get("status") in ("WITHDRAWN", None)
+        and ((run.get("result") or {}).get("status") == "ABORTED_PRE_SUBMIT" or bool(run.get("thrown"))))
 
     for name, scn in (("withdrawn_after_submitting_record", {"withdraw_after": "SUBMITTING"}),
                       ("expired_between_submitting_record_and_post", {"clock_jump_after": "SUBMITTING", "clock_jump_seconds": 3600})):
-        qf, sf = fresh_case(name)
-        run = consume(qf, sf, scn)
+        case = build_case(name)
+        run = consume(case, scn)
         scenarios[name] = {"status": run["result"]["status"], "attempt_status": run["attempt"]["status"],
                            "stand_money_requests": run["stand"]["money_requests"], "blocked_reasons": run["result"]["blocked_reasons"],
-                           "not_sent_proof": run["attempt"]["not_sent_proof"]}
+                           "not_sent_reason": (run["attempt"]["not_sent_proof"] or {}).get("reason")}
         checks[f"{name}_forwards_nothing"] = (run["stand"]["money_requests"] == 0 and run["attempt"]["status"] == "WITHDRAWN"
                                               and run["result"]["status"] == "ABORTED_PRE_SUBMIT")
-    qf, sf = fresh_case("expired_plan")
-    stale_plan = copy.deepcopy(plan)
-    run = node("consume", ["--file", qf], {"plan": stale_plan, "store_path": sf, "clock_start": order["expires_at"] + 1, "scenario": {}}, allow_failure=True)
+    case = build_case("expired_plan")
+    run = consume(case, allow_failure=True, clock=case.order["expires_at"] + 1)
     scenarios["expired_plan_at_start"] = {"thrown": run.get("thrown"), "stand_money_requests": run["stand"]["money_requests"]}
-    checks["expired_plan_is_refused_before_any_claim"] = ("TASK_EXPIRED" in str(run.get("thrown")) or "EVIDENCE_EXPIRED" in str(run.get("thrown"))) and run["stand"]["money_requests"] == 0
+    checks["expired_plan_is_refused_before_any_claim"] = (
+        ("TASK_EXPIRED" in str(run.get("thrown")) or "EVIDENCE_EXPIRED" in str(run.get("thrown"))) and run["stand"]["money_requests"] == 0
+        and run.get("attempt") is None)
 
     # 4.7 board price drift and bookmaker answers
-    qf, sf = fresh_case("price_drift_on_board")
-    run = consume(qf, sf, {"board_price": plan["selection"]["price"] + 0.3})
+    case = build_case("price_drift_on_board")
+    run = consume(case, {"board_price": case.plan["selection"]["price"] + 0.3})
     scenarios["price_drift_on_board"] = {"status": run["result"]["status"], "error": run["result"]["error"], "attempt_status": run["attempt"]["status"],
                                          "stand_money_requests": run["stand"]["money_requests"]}
     checks["board_price_drift_forwards_nothing"] = run["stand"]["money_requests"] == 0 and run["attempt"]["status"] == "WITHDRAWN"
@@ -517,10 +592,9 @@ async def main() -> int:
         "bookmaker_unauthenticated": ({"errors": [{"code": "unauthenticated_error"}]}, "INDETERMINATE"),
     }
     for name, (answer, expected) in answers.items():
-        qf, sf = fresh_case(name)
-        qid = node("queue-current", ["--file", qf])["item"]["id"]
-        run = consume(qf, sf, {"answer": answer})
-        att, exp = exported(sf, key, qid)
+        case = build_case(name)
+        run = consume(case, {"answer": answer})
+        att, exp = exported(case)
         scenarios[name] = {"status": run["result"]["status"], "attempt_status": att["status"], "stand_money_requests": run["stand"]["money_requests"],
                            "export_outcome": exp["outcome"], "export_unresolved": exp["unresolved"], "queue_write_back": run["queue_write_back"]}
         checks[f"{name}_is_{expected.lower()}_with_one_request"] = (

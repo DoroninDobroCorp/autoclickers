@@ -964,6 +964,13 @@ def assess_live_readiness(task:Any,quote:Any=None,account_state:Any=None,*,now:f
 _REQUIRED_EXPIRIES=('task','donor','reference','margins','executor_quote','account')
 
 
+def _source_quote_record(quote:Any)->dict[str,Any]|None:
+    """Price, clock and provenance of a source quote, nothing else (no payload of the parser)."""
+    if not isinstance(quote,dict):return None
+    keys=('source','source_event_key','source_market','odds','observed_at','source_ts','observed_at_origin','observed_at_semantics')
+    return {key:copy.deepcopy(quote.get(key)) for key in keys if key in quote}
+
+
 def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],account_state:dict[str,Any],*,now:float,
                                      max_stake:float|None=None,diagnostic_only:bool=False,task_store:Any=None,
                                      require_declared_payout:bool=False)->dict[str,Any]:
@@ -1009,6 +1016,16 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
         'expires_at':min(expiries[name] for name in _REQUIRED_EXPIRIES),
         'valuation_basis':copy.deepcopy(task.get('valuation_basis')),
         'reference':{'source':'BIA','role':'reference','executable':False},
+        # Why this order exists, which queue item it came from and the source prices/clocks it rests on:
+        # kept so that the durable attempt (whose payload is the plan) is auditable on its own.
+        'purpose':'diagnostic_test' if diagnostic_only else 'value',
+        'correlation':{'task_idempotency_key':task['idempotency_key'],
+                       'queue_task_id':(task.get('queue') or {}).get('task_id') if isinstance(task.get('queue'),dict) else None,
+                       'queue_adapter_version':(task.get('queue') or {}).get('adapter_version') if isinstance(task.get('queue'),dict) else None},
+        'source_quotes':{
+            'donor':_source_quote_record(task.get('quote')),
+            'reference':_source_quote_record(task.get('reference_quote')),
+            'margins':[_source_quote_record(q) for q in (task.get('margin_quotes') or [])]},
         'capacity':capacity,
         'evidence':{
             'expiries':{name:expiries[name] for name in _REQUIRED_EXPIRIES},

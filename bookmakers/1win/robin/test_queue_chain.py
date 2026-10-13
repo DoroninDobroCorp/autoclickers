@@ -169,6 +169,25 @@ class OrderToCartPlan(unittest.TestCase):
         self.assertEqual(plan["selection"]["selection_id"], order["selection_id"])
         self.assertEqual(plan["account_conditions"]["commission"], 0.0)
 
+    def test_purpose_correlation_and_source_quotes_survive_into_the_plan(self):
+        item = enqueue("P1 T< 1")
+        task = common_task_from_queue_item(item, stake=1.0, stake_currency="USDT", now=NOW)
+        for diagnostic, purpose in ((True, "diagnostic_test"), (False, "value")):
+            with self.subTest(diagnostic=diagnostic):
+                order = verify_live_execution_conditions(task, executor_quote(task), ACCOUNT, now=NOW + 1, diagnostic_only=diagnostic)
+                plan = cart_plan_from_order(order, event_url="https://1win.pro/betting/match/sport/39949187",
+                                            market_name="1st half. Total", ui_selection_name="Under 1")
+                self.assertEqual(plan["purpose"], purpose)
+                self.assertEqual(plan["correlation"]["queue_task_id"], item["id"])
+                self.assertEqual(plan["correlation"]["task_idempotency_key"], task["idempotency_key"])
+                donor = plan["source_quotes"]["donor"]
+                self.assertEqual(donor["odds"], task["quote"]["odds"])
+                self.assertEqual(donor["observed_at"], task["quote"]["observed_at"])
+                self.assertEqual(donor["source_event_key"], task["quote"]["source_event_key"])
+                self.assertEqual(plan["source_quotes"]["reference"]["source"], "BIA")
+                self.assertEqual(len(plan["source_quotes"]["margins"]), len(task["margin_quotes"]))
+                self.assertNotIn("market_axes", donor)  # no parser payload, only price + clock + provenance
+
     def test_unverified_or_mutated_orders_are_refused(self):
         order = self.order()
         for mutation in ({"execution_ready": False}, {"execution_blockers": ["x"]}, {"schema_version": "x"}):

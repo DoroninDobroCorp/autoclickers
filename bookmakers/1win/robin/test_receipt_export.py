@@ -40,6 +40,15 @@ class ReceiptExportTest(unittest.TestCase):
         rejected = export_attempt_receipt(entry(status="REJECTED", error="odd_cf_changed", receipt=None), transport_environment="local_stand")
         self.assertEqual((rejected["outcome"], rejected["rejection_code"], rejected["unresolved"]), ("rejected", "odd_cf_changed", False))
 
+    def test_purpose_correlation_and_source_quotes_come_from_the_attempt_payload(self):
+        payload = {"idempotency_key": "k-1", "purpose": "diagnostic_test", "correlation": {"queue_task_id": 42, "task_idempotency_key": "k-1"},
+                   "source_quotes": {"donor": {"odds": 1.87, "source_ts": 1790000000.0}, "reference": None, "margins": []}}
+        out = export_attempt_receipt(entry(payload=payload), transport_environment="local_stand")
+        self.assertEqual((out["purpose"], out["queue_task_id"]), ("diagnostic_test", 42))
+        self.assertEqual(out["source_quotes"]["donor"]["odds"], 1.87)
+        none = export_attempt_receipt(entry(payload={"purpose": "anything"}), transport_environment="local_stand")
+        self.assertIsNone(none["purpose"])
+
     def test_indeterminate_attempt_reconciled_against_history(self):
         placed = export_attempt_receipt(entry(status="INDETERMINATE", receipt=None, revisions=[
             {"seq": 1, "kind": "receipt_reconciled", "data": {"bet_id": "STAND-3", "source": "history"}, "created_at": 1}]),

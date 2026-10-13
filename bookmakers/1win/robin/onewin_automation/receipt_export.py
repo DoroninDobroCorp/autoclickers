@@ -76,10 +76,16 @@ def export_attempt_receipt(entry: dict[str, Any], *, transport_environment: str,
         bet_id = reconciled["bet_id"]
     synthetic = transport_environment != "production" or (bet_id is not None and bool(_SYNTHETIC_ID.match(bet_id)))
     mismatches = list(receipt.get("condition_mismatches") or []) if receipt else []
+    payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+    correlation = payload.get("correlation") if isinstance(payload.get("correlation"), dict) else {}
+    if queue_task_id is None:
+        queue_task_id = correlation.get("queue_task_id")
     record = {
         "schema_version": EXPORT_SCHEMA,
         "idempotency_key": key,
         "queue_task_id": queue_task_id,
+        "purpose": payload.get("purpose") if payload.get("purpose") in {"diagnostic_test", "value"} else None,
+        "source_quotes": payload.get("source_quotes") if isinstance(payload.get("source_quotes"), dict) else None,
         "attempt_status": status,
         "outcome": ("accepted_reconciled" if status == "INDETERMINATE" and reconciled and reconciled["kind"] == "placed"
                     else "not_placed_reconciled" if status == "INDETERMINATE" and reconciled and reconciled["kind"] == "not_placed"

@@ -169,10 +169,59 @@ Python placement gate: `PlacementGate` requires a verified order by default. `pl
 the claim and again after the SUBMITTING record); a pre-built order object is never trusted, the
 transport receives a whitelist built from the verified order, and a receipt next to an error is
 INDETERMINATE, not a rejection. The legacy behaviour needs `require_verified_order=False` explicitly.
-`LegacyOneWinAdapter`-style paths (`value-executor/OneWinAdapter.js`) refuse live placement unless an
-owner opts in twice.
+`value-executor/OneWinAdapter.js` has no live placement path at all (its former double opt-in drove an
+unguarded browser page); the only live executor is `OneWinLiveCart`.
 
 Queue route: `queue_adapter.py` converts the item the real Node `TaskBuilder`/`TasksManager`
 stores into `automation-task.v1`; `cart_plan.py` turns a verified order into the plan consumed by
 `OneWinLiveCart`, whose route guard re-checks the clock, the earliest evidence expiry, withdrawal and
 the attempt state at the moment a POST is permitted.
+
+## Transport boundary (2026-10-13)
+
+`scripts/onewin/transport_guard.mjs` is the one network boundary of both carts. The browser is a larger
+surface than `fetch`, so the guard combines (see the file header for the reasoning):
+
+* HTTP, context + page level: GET/HEAD/OPTIONS pass, except placement paths; a non-read request passes
+  only if it is a proven read endpoint of the bet API origin (`READ_ONLY_POST_PATHS`: coupon limit
+  lookups, `matches/get-many`, `highlights/get-many`), the public-token session bootstrap
+  (`POST /auth/login` with exactly `{publicToken}`) or the one armed, exact `make-bet-v2` of the live cart.
+  Everything else (analytics, bonus calls, a placement path under any verb, an unknown endpoint) is
+  refused by default and listed in the cart result (`blocked_unknown_transport` / `blocked_reasons`).
+* WebSocket client->server frames: engine.io control frames, socket.io connect and
+  `subscribe-*`/`unsubscribe-*` events only. The odds feed keeps working; any other event, binary or
+  unparseable frame is dropped and recorded.
+* An init script removes `Worker`, `SharedWorker`, service-worker registration, `WebTransport` and
+  `RTCDataChannel` in every frame of a FRESH document. The carts leave a document that predates the
+  guard before they trust anything (`ensureFreshDocument`).
+* A second CDP client inspects the answers of the bet API origin: a redirect is followed only if its
+  target is itself a plain read (Playwright routes only the first hop).
+* Canaries on reserved `.invalid` names prove, on the document used for the submit, that the HTTP route,
+  the WebSocket route, the worker/service-worker removal and the redirect guard are active; any failure
+  refuses the run before anything is clicked and again before SUBMITTING is recorded.
+
+Tests: `transport_guard_real_browser_test.mjs` and `native_wire_contract_stand_test.mjs` run both carts
+in a real Chromium against `transport_stand.mjs` (own HTTP/WS/TLS endpoints; no external network).
+`session_runner.mjs` + `proxy_bridge.mjs` own the lifetime of the temporary loopback CONNECT bridge and
+the browser (return, error, `SESSION_TIMEOUT`, SIGTERM/SIGINT all close both; no direct fallback).
+
+Not covered by routing and therefore residual: a handler another piece of code registers on the same
+page AFTER the guard that continues every request (the canary catches it at arming time, not later);
+cross-origin iframes are protected by the context-level routes but not by the redirect guard.
+
+## First-party contract and account facts
+
+`evidence/native-wire-contract-*.json` (task folder) records the make-bet-v2 request/answer contract as
+the first-party client implements it. `account_readonly_probe.mjs` is the read-only probe (stages
+`discover`, `list`, `snapshot`, `binding`); it needs the private proxy config and session state and
+writes its raw output with mode 0600. Per-bet commission is not a concept of the client contract: it
+stays `unverified` until a settled receipt exists. The limit lookup returns the wallet balance for
+every valid selection (wallet cap; market limit unknown).
+
+## Route proof and receipt export
+
+`route_proof.py` (+ `route_node_runner.mjs`) drives one task through the real queue, the real Jev client,
+a verified order and the real cart in a real Chromium against the local stand; the report names every
+stub. `receipt_export.py` turns a durable attempt into `automation-receipt-export.v1` for settlement and
+reporting: identity, requested stake, bookmaker receipt, reconciliation revision, `synthetic`, settlement
+always `pending`, no value figures.
