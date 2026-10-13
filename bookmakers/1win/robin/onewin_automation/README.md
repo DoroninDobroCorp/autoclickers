@@ -179,35 +179,50 @@ the attempt state at the moment a POST is permitted.
 
 ## Transport boundary (2026-10-13)
 
-`scripts/onewin/transport_guard.mjs` is the one network boundary of both carts. The browser is a larger
-surface than `fetch`, so the guard combines (see the file header for the reasoning):
+`scripts/onewin/transport_guard.mjs` (v2) is the one network boundary of both carts. The browser is a
+larger surface than `fetch`, so the guard combines (see the file header for the reasoning):
 
-* HTTP, context + page level: GET/HEAD/OPTIONS pass, except placement paths; a non-read request passes
-  only if it is a proven read endpoint of the bet API origin (`READ_ONLY_POST_PATHS`: coupon limit
-  lookups, `matches/get-many`, `highlights/get-many`), the public-token session bootstrap
-  (`POST /auth/login` with exactly `{publicToken}`) or the one armed, exact `make-bet-v2` of the live cart.
-  Everything else (analytics, bonus calls, a placement path under any verb, an unknown endpoint) is
-  refused by default and listed in the cart result (`blocked_unknown_transport` / `blocked_reasons`).
+* HTTP, context + page level: GET/HEAD/OPTIONS pass, except placement paths (any verb, percent-encoding
+  decoded); a non-read request passes only if it is a proven read endpoint of the bet API origin
+  (`READ_ONLY_POST_PATHS`: coupon limit lookups, `matches/get-many`, `highlights/get-many`), the
+  public-token session bootstrap (`POST /auth/login` with exactly `{publicToken}`) or the one armed,
+  exact `POST <bet origin>/bets/make-bet-v2` of the live cart (exact verb, origin, path; a prefix,
+  suffix, other case, trailing slash is another route). Everything else (analytics, bonus calls, a
+  placement path under any verb, an unknown endpoint) is refused by default and listed in the cart
+  result (`blocked_unknown_transport` / `blocked_reasons`). Verb/path rewriting headers are refused.
 * WebSocket client->server frames: engine.io control frames, socket.io connect and
-  `subscribe-*`/`unsubscribe-*` events only. The odds feed keeps working; any other event, binary or
-  unparseable frame is dropped and recorded.
-* An init script removes `Worker`, `SharedWorker`, service-worker registration, `WebTransport` and
-  `RTCDataChannel` in every frame of a FRESH document. The carts leave a document that predates the
-  guard before they trust anything (`ensureFreshDocument`).
-* A second CDP client inspects the answers of the bet API origin: a redirect is followed only if its
-  target is itself a plain read (Playwright routes only the first hop).
-* Canaries on reserved `.invalid` names prove, on the document used for the submit, that the HTTP route,
-  the WebSocket route, the worker/service-worker removal and the redirect guard are active; any failure
-  refuses the run before anything is clicked and again before SUBMITTING is recorded.
+  `subscribe-*`/`unsubscribe-*` events only; the same policy runs in Node (`routeWebSocket`) and INSIDE
+  the page in front of Playwright's mock (whose internals are reachable from page scripts).
+* An init script removes `Worker`, `SharedWorker`, service-worker registration, `WebTransport`,
+  `WebSocketStream`, `fetchLater` and `RTCDataChannel` in every frame of a FRESH document. The carts
+  leave a document that predates the guard before they trust anything (`ensureFreshDocument`). A second
+  window is closed at once.
+* A second CDP client inspects fetch/XHR/document answers: a redirect is followed only if its target is
+  itself a plain read (Playwright routes only the first hop).
+* Canaries on the REAL bet API origin (reserved path) and reserved names prove, on the document used for
+  the submit, that the HTTP route, the WebSocket route, the in-page policy, the removal of the
+  unmediated transports, the worker/service-worker removal and the redirect guard are active; any
+  failure refuses the run before anything is clicked and again before SUBMITTING is recorded.
+* The make-bet-v2 body is read as text and must be canonical JSON (exactly what `JSON.stringify` makes
+  of its own parse), `application/json`, a closed set of typed fields, exact amount/price/ids.
 
 Tests: `transport_guard_real_browser_test.mjs` and `native_wire_contract_stand_test.mjs` run both carts
 in a real Chromium against `transport_stand.mjs` (own HTTP/WS/TLS endpoints; no external network).
 `session_runner.mjs` + `proxy_bridge.mjs` own the lifetime of the temporary loopback CONNECT bridge and
 the browser (return, error, `SESSION_TIMEOUT`, SIGTERM/SIGINT all close both; no direct fallback).
 
-Not covered by routing and therefore residual: a handler another piece of code registers on the same
-page AFTER the guard that continues every request (the canary catches it at arming time, not later);
-cross-origin iframes are protected by the context-level routes but not by the redirect guard.
+Residual (not mediated from inside the browser; do not read the guard as more than it is):
+
+* Browser-process GET requests (speculation-rules prefetch) never pass Playwright routing; a GET to a
+  placement path from there reaches the server. Only GETs, and the first-party client does not use them.
+* One guard decision can become two wire POSTs: Chromium re-sends a request whose reused keep-alive
+  connection was reset before an answer. The retry carries the same body and the same client
+  `idempotencyKey`; nothing verifies that the server de-duplicates by it (reconcile by identity).
+* Code in the same process that registers a handler for the bet host AFTER the arming check.
+* A complete enforcement point needs a forward proxy that terminates TLS in front of Chromium (the
+  bridge today is an opaque CONNECT tunnel); not built: it changes the TLS fingerprint of the client.
+* The first-party client creates one blob worker on event pages; it is removed (read flows and the
+  make-bet request builder do not depend on it).
 
 ## First-party contract and account facts
 

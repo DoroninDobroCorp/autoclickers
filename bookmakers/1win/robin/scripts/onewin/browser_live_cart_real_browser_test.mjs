@@ -22,7 +22,7 @@ const plan = {
   selection: { event_id: '40021999', market_id: '6271', selection_id: '10:193671744120169820:0', price: 1.87 },
 };
 const goodBody = {
-  currencyCode: 'USDT', amount: 1,
+  currencyCode: 'USDT', idempotencyKey: 'client-uuid-1', amount: 1,
   coupon: { amount: 1, selections: [{ oddId: plan.selection.selection_id, cf: 1.87, matchId: '40021999', marketId: '6271' }] },
   wallet: { type: 'real' },
 };

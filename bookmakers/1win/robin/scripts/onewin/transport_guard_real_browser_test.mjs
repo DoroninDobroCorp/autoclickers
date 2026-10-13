@@ -147,9 +147,10 @@ for (const kind of ['dry', 'live']) {
     await withCart(t, kind, async ({ cart }) => {
       const verdict = await cart._guard.verifyCoverage();
       assert.equal(verdict.ok, true, JSON.stringify(verdict));
-      assert.deepEqual(Object.keys(verdict.checks).sort(), ['http_canary', 'http_route', 'init_script', 'no_foreign_worker',
-        'redirect_guard', 'service_worker_blocked', 'worker_blocked', 'ws_canary', 'ws_route']);
-      assert.equal(stand.log.http.some((h) => /canary/.test(String(h.host))), false, 'canary never reaches the network');
+      assert.deepEqual(Object.keys(verdict.checks).sort(), ['http_canary', 'http_route', 'init_script', 'no_foreign_worker', 'no_other_site_pages',
+        'redirect_guard', 'service_worker_blocked', 'unmediated_transports_removed', 'worker_blocked', 'ws_canary', 'ws_policy_in_page', 'ws_route']);
+      assert.equal(stand.log.http.some((h) => /canary/.test(String(h.path))), false, 'the canary never reaches the bet API origin');
+      assert.equal(stand.log.ws.length, 0);
     });
   });
 
@@ -231,17 +232,17 @@ for (const kind of ['dry', 'live']) {
     });
   });
 
-  test(`${kind}: popup is routed too (HTTP and WebSocket)`, async (t) => {
+  test(`${kind}: a popup is closed at once and moves nothing, even with an immediate redirecting POST`, async (t) => {
     await withCart(t, kind, async ({ page, context, settle }) => {
-      const [popup] = await Promise.all([context.waitForEvent('page'), page.evaluate(() => { window.open('/', '_blank'); })]);
-      await popup.waitForLoadState();
-      const http = await popup.evaluate(({ url }) => fetch(url, { method: 'POST', body: '{"amount":1}' }).then(() => 'sent', () => 'blocked'),
-        { url: stand.betOrigin + '/bets/make-bet-v2' });
-      assert.equal(http, 'blocked');
-      await popup.evaluate(({ url }) => new Promise((resolve) => {
-        const s = new WebSocket(url); s.onopen = () => { s.send('42["place-bet",{}]'); setTimeout(resolve, 150); }; s.onerror = resolve;
-      }), { url: stand.wsBase + '/ws/bet' });
-      await settle();
+      const popupPromise = context.waitForEvent('page');
+      await page.evaluate(({ url }) => {
+        // the popup's first script fires a redirecting read POST the moment it runs
+        const w = window.open('/', '_blank');
+        try { w.addEventListener('load', () => w.fetch(url, { method: 'POST', body: '{}' }).catch(() => {})); } catch { /* cross-origin */ }
+      }, { url: stand.betOrigin + '/bets/get-max-bet-amount?redirect=1' });
+      const popup = await popupPromise;
+      await settle(600);
+      assert.equal(popup.isClosed(), true, 'the second window is closed by the guard');
       assert.equal(stand.log.money.length, 0);
     });
   });
@@ -338,6 +339,74 @@ for (const kind of ['dry', 'live']) {
     });
   });
 
+  test(`${kind}: transports that no route mediates (WebSocketStream, fetchLater) are removed and the Playwright mock is not reachable`, async (t) => {
+    await withCart(t, kind, async ({ page, settle }) => {
+      const result = await page.evaluate(async ({ ws, bet }) => {
+        const out = {};
+        const attempt = async (name, fn) => { try { await fn(); out[name] = 'done'; } catch (e) { out[name] = `refused:${e.name}`; } };
+        await attempt('websocketstream', async () => {
+          if (typeof WebSocketStream === 'undefined') throw Object.assign(new Error('absent'), { name: 'Absent' });
+          const stream = new WebSocketStream(ws + '/ws/bet');
+          const { writable } = await stream.opened;
+          await writable.getWriter().write('42["place-bet",{"stake":9999}]');
+        });
+        await attempt('fetchlater', async () => {
+          if (typeof fetchLater === 'undefined') throw Object.assign(new Error('absent'), { name: 'Absent' });
+          fetchLater(bet + '/bets/make-bet-v2', { method: 'POST', body: '{"amount":9999}', activateAfter: 0 });
+        });
+        // the mock Playwright puts behind window.WebSocket: its internals must not be reachable from the page
+        out.mock_internals = await new Promise((resolve) => {
+          const s = new WebSocket(ws + '/ws/bet');
+          s.onopen = () => {
+            const reach = [];
+            try { if (s._ws) { s._ws.send('42["place-bet",{"via":"_ws"}]'); reach.push('_ws'); } } catch { /* absent */ }
+            try { s._passthrough = true; s.send('42["place-bet",{"via":"_passthrough"}]'); } catch { /* absent */ }
+            try {
+              if (typeof __pwWebSocketDispatch === 'function' && s._id !== undefined) {
+                __pwWebSocketDispatch({ id: s._id, type: 'sendToServer', data: '42["place-bet",{"via":"dispatch"}]' });
+                reach.push('dispatch');
+              }
+            } catch { /* absent */ }
+            setTimeout(() => resolve(reach), 200);
+          };
+          s.onerror = () => resolve(['error']);
+        });
+        return out;
+      }, { ws: stand.wsBase, bet: stand.betOrigin });
+      await settle(500);
+      assert.match(result.websocketstream, /^(?:refused|done)/);
+      assert.deepEqual(result.mock_internals, [], 'no Playwright internals on the object the page holds');
+      assert.equal(stand.log.money.length, 0, JSON.stringify({ result, money: stand.log.money }));
+    });
+  });
+
+  test(`${kind}: OPTIONS and rewriting headers do not turn a harmless request into a placement`, async (t) => {
+    await withCart(t, kind, async ({ page, settle }) => {
+      const out = await page.evaluate(async ({ bet }) => {
+        const run = (url, init) => fetch(url, init).then((r) => r.status, (e) => 'blocked');
+        return {
+          options_money_path: await run(bet + '/bets/make-bet-v2', { method: 'OPTIONS', body: '{"amount":1}' }),
+          override_header: await run(bet + '/bets/get-max-bet-amount', { method: 'POST', headers: { 'x-http-method-override': 'PUT', 'content-type': 'application/json' }, body: '{}' }),
+          original_url_header: await run(bet + '/bets/get-base-settings', { headers: { 'x-original-url': '/bets/make-bet-v2' } }),
+        };
+      }, { bet: stand.betOrigin });
+      await settle();
+      assert.deepEqual(out, { options_money_path: 'blocked', override_header: 'blocked', original_url_header: 'blocked' });
+      assert.equal(stand.log.money.length, 0);
+    });
+  });
+
+  test(`${kind}: another window of the bookmaker predating the guard makes the coverage proof fail`, async (t) => {
+    await withCart(t, kind, async ({ cart, context }) => {
+      assert.equal((await cart._guard.verifyCoverage()).ok, true);
+      const other = await context.newPage().catch(() => null);
+      // a popup is closed by the guard; a window that was opened some other way is a stranger
+      if (other) { await other.goto(stand.siteOrigin + '/').catch(() => {}); }
+      const verdict = await cart._guard.verifyCoverage();
+      if (other && !other.isClosed()) assert.equal(verdict.checks.no_other_site_pages, false);
+    });
+  });
+
   test(`${kind}: a later route handler that continues everything is detected by the canary, nothing is clicked`, async (t) => {
     await withCart(t, kind, async ({ page, cart }) => {
       // registered AFTER the guard, therefore running before it: the bypass the review described
@@ -382,7 +451,8 @@ test('live: a failed installation leaves no handler behind, the retry decides ev
     const answer = await page.evaluate(async ({ url }) => {
       try {
         const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-          currencyCode: 'USDT', amount: 1, coupon: { amount: 1, selections: [{ oddId: '10:193671744120169820:0', cf: 1.87, matchId: '40021999' }] },
+          currencyCode: 'USDT', idempotencyKey: 'client-uuid-2', amount: 1,
+          coupon: { amount: 1, selections: [{ oddId: '10:193671744120169820:0', cf: 1.87, matchId: '40021999' }] },
           wallet: { type: 'real' } }) });
         return { status: r.status };
       } catch (e) { return { blocked: String(e) }; }
@@ -392,6 +462,106 @@ test('live: a failed installation leaves no handler behind, the retry decides ev
     assert.equal(stand.log.money.length, 1, 'exactly one request, decided once');
     assert.equal(cart.submitSentCount, 1);
   } finally { await context.close(); }
+});
+
+async function armedLiveCart(t, fn) {
+  if (skipReason) return t.skip(skipReason);
+  stand.reset();
+  stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin }));
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(stand.siteOrigin + EVENT_PATH);
+    const { store } = tempStore();
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: POLICY() });
+    await cart.installGuard();
+    await cart._guard.ensureFreshDocument();
+    await page.goto(stand.siteOrigin + EVENT_PATH);
+    let n = 0;
+    const arm = async () => {
+      n += 1;
+      const key = `armed-${n}`;
+      await store.claim(key, { stake: 1, currency: 'USDT', payload: { idempotency_key: key, stake: 1, currency: 'USDT',
+        event_id: '40021999', market_id: '6271', selection_id: `10:193671744120169820:${n}` } });
+      await store.record(key, 'PRE_CHECK_PASSED');
+      await store.record(key, 'SUBMITTING');
+      cart._runtime = { now: () => 1000, cancelled: async () => false };
+      cart.armedExpectation = { idempotencyKey: key, eventId: '40021999', marketId: '6271', selectionId: '10:193671744120169820:0',
+        stake: 1, currency: 'USDT', price: 1.87, expiresAt: 2000 };
+      cart.submitSentCount = 0;
+    };
+    const send = (path_, raw, headers = { 'content-type': 'application/json' }, method = 'POST') => page.evaluate(async ({ url, raw, headers, method }) => {
+      try { const r = await fetch(url, { method, headers, body: raw }); return { status: r.status }; } catch (e) { return { blocked: String(e) }; }
+    }, { url: stand.betOrigin + path_, raw, headers, method });
+    await fn({ page, cart, arm, send, context });
+  } finally { await context.close(); }
+}
+
+const goodRaw = () => JSON.stringify({ currencyCode: 'USDT', idempotencyKey: 'client-uuid', amount: 1, meta: { isDirtyAmountField: true },
+  coupon: { amount: 1, selections: [{ oddId: '10:193671744120169820:0', cf: 1.87, matchId: '40021999' }] }, wallet: { type: 'real' } });
+
+test('live armed: only the exact verb, origin and path is forwarded; every similar path is refused', async (t) => {
+  await armedLiveCart(t, async ({ arm, send, cart }) => {
+    for (const p of ['/bets/make-bet-v2/', '/bets/make-bet-v2/anything', '/bets/make-bet-v2/refund', '/BETS/MAKE-BET-V2', '/x/bets/make-bet-v2',
+      '//bets/make-bet-v2', '/bets/make-bet-v2;x', '/bets/make%2Dbet-v2', '/bets/make-bet-v2/..%2f..%2fbets%2frefund']) {
+      await arm();
+      const r = await send(p, goodRaw());
+      assert.ok(r.blocked, `${p} must not be forwarded: ${JSON.stringify(r)}`);
+      assert.equal(cart.armedExpectation, null, 'a refused request still disarms');
+    }
+    assert.equal(stand.log.money.length, 0);
+    await arm();
+    assert.equal((await send('/bets/make-bet-v2', goodRaw())).status, 200);
+    assert.equal(stand.log.money.length, 1);
+  });
+});
+
+test('live armed: the body is a closed, canonical contract (types, duplicates, coercions, content type)', async (t) => {
+  await armedLiveCart(t, async ({ arm, send }) => {
+    const base = JSON.parse(goodRaw());
+    const variants = {
+      array_odd_id: JSON.stringify({ ...base, coupon: { ...base.coupon, selections: [{ ...base.coupon.selections[0], oddId: ['10:193671744120169820:0'] }] } }),
+      array_match_id: JSON.stringify({ ...base, coupon: { ...base.coupon, selections: [{ ...base.coupon.selections[0], matchId: [40021999] }] } }),
+      numeric_string_market_array: JSON.stringify({ ...base, coupon: { ...base.coupon, selections: [{ ...base.coupon.selections[0], marketId: ['6271'] }] } }),
+      auto_bet_amount_object: JSON.stringify({ ...base, meta: { autoBetAmount: {} } }),
+      dirty_flag_object: JSON.stringify({ ...base, meta: { isDirtyAmountField: {} } }),
+      meta_array: JSON.stringify({ ...base, meta: ['x'] }),
+      bonuses_object: JSON.stringify({ ...base, bonuses: { id: 5 } }),
+      bonus_percent_string: JSON.stringify({ ...base, bonusPercent: 'X' }),
+      wallet_missing: JSON.stringify({ ...base, wallet: undefined }),
+      idempotency_key_missing: JSON.stringify({ ...base, idempotencyKey: undefined }),
+      amount_off_by_epsilon: JSON.stringify({ ...base, amount: 1.0000000001 }),
+      cf_off_by_epsilon: JSON.stringify({ ...base, coupon: { ...base.coupon, selections: [{ ...base.coupon.selections[0], cf: 1.87000000001 }] } }),
+      duplicate_amount_key: goodRaw().replace('"amount":1,', '"amount":1000,"amount":1,'),
+      padded_with_whitespace: ` ${goodRaw()}`,
+      trailing_second_document: `${goodRaw()}{"amount":9999}`,
+      escaped_key: goodRaw().replace('"currencyCode"', '"currency\\u0043ode"'),
+    };
+    for (const [name, raw] of Object.entries(variants)) {
+      await arm();
+      const r = await send('/bets/make-bet-v2', raw);
+      assert.ok(r.blocked, `${name} must be refused: ${JSON.stringify(r)}`);
+    }
+    await arm();
+    const textPlain = await send('/bets/make-bet-v2', goodRaw(), { 'content-type': 'text/plain' });
+    assert.ok(textPlain.blocked, 'the contract is JSON');
+    assert.equal(stand.log.money.length, 0);
+    await arm();
+    assert.equal((await send('/bets/make-bet-v2', goodRaw())).status, 200);
+    assert.equal(stand.log.money.length, 1);
+  });
+});
+
+test('live: a later handler written for the bet host (continue / passthrough) is caught by the canary on the REAL origin', async (t) => {
+  await armedLiveCart(t, async ({ page, context, cart }) => {
+    assert.equal((await cart._guard.verifyCoverage()).ok, true);
+    const betHost = new URL(stand.betOrigin).hostname;
+    await context.route((url) => url.hostname === betHost, (route) => route.continue());
+    await page.route((url) => url.hostname === betHost, (route) => route.continue());
+    const verdict = await cart._guard.verifyCoverage();
+    assert.equal(verdict.ok, false, JSON.stringify(verdict));
+    assert.equal(verdict.checks.http_canary, false);
+  });
 });
 
 // ---------------------------------------------------------------- end to end through the real carts

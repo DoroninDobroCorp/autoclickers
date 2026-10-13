@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseAmount, eventIdFromUrl } from './browser_cart.mjs';
-import { TransportGuard, DEFAULT_BET_API_ORIGINS, READ_ONLY_POST_PATHS } from './transport_guard.mjs';
+import { TransportGuard, DEFAULT_BET_API_ORIGINS, READ_ONLY_POST_PATHS, SUBMIT_PATH } from './transport_guard.mjs';
 
 const TERMINAL_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'INDETERMINATE', 'WITHDRAWN']);
 const VALID_STATUSES = new Set(['CLAIMED', 'PRE_CHECK_PASSED', 'SUBMITTING', ...TERMINAL_STATUSES]);
@@ -864,6 +864,8 @@ export class OneWinLiveCart {
     return { ok: true };
   }
 
+  // The body the first-party client sends is a closed contract (see evidence/native-wire-contract):
+  // every field has a type, unknown fields are drift, ids are strings, nothing is coerced.
   _validateMakeBetRequestBody(body, expected) {
     if (!isPlainObject(body)) {
       return { ok: false, reason: 'body_not_an_object' };
@@ -880,33 +882,45 @@ export class OneWinLiveCart {
         ? body.coupon.selections.map((sel) => (isPlainObject(sel) ? unknownKey(sel, MAKE_BET_SELECTION_KEYS, 'selection') : null)).find(Boolean) || null
         : null);
     if (drift) return { ok: false, reason: drift };
-    if (body.idempotencyKey !== undefined && (typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.trim())) {
+    if (typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.trim() || body.idempotencyKey.length > 128) {
       return { ok: false, reason: 'idempotency_key_invalid' };
     }
-    if (isPlainObject(body.meta) && body.meta.sharedBetCode !== undefined && body.meta.sharedBetCode !== null && body.meta.sharedBetCode !== '') {
-      return { ok: false, reason: 'shared_bet_code_forbidden' };
+    if (body.meta !== undefined) {
+      if (!isPlainObject(body.meta)) return { ok: false, reason: 'meta_not_an_object' };
+      const m = body.meta;
+      if (m.sharedBetCode !== undefined && m.sharedBetCode !== null && m.sharedBetCode !== '') {
+        return { ok: false, reason: 'shared_bet_code_forbidden' };
+      }
+      if (m.autoBetAmount !== undefined && m.autoBetAmount !== null
+        && !(typeof m.autoBetAmount === 'number' && Number.isFinite(m.autoBetAmount) && m.autoBetAmount >= 0)) {
+        return { ok: false, reason: 'meta_auto_bet_amount_invalid' };
+      }
+      if (m.isDirtyAmountField !== undefined && typeof m.isDirtyAmountField !== 'boolean') {
+        return { ok: false, reason: 'meta_is_dirty_amount_field_invalid' };
+      }
     }
     if (body.currencyCode !== expected.currency) {
       return { ok: false, reason: `currency_code_mismatch:${body.currencyCode}!=${expected.currency}` };
     }
-    if (typeof body.amount !== 'number' || Math.abs(body.amount - expected.stake) > 1e-9) {
+    if (typeof body.amount !== 'number' || body.amount !== expected.stake) {
       return { ok: false, reason: `amount_mismatch:${body.amount}!=${expected.stake}` };
     }
     if (body.freebetId !== undefined && body.freebetId !== null) {
       return { ok: false, reason: 'freebet_substitution_forbidden' };
     }
-    if (body.bonusPercent || (Array.isArray(body.bonuses) && body.bonuses.length > 0)) {
+    if (body.bonusPercent !== undefined && body.bonusPercent !== null && body.bonusPercent !== 0) {
       return { ok: false, reason: 'bonus_substitution_forbidden' };
     }
-    if (body.wallet) {
-      if (body.wallet.type !== 'real' || body.wallet.bonusId) {
-        return { ok: false, reason: 'non_real_wallet_forbidden' };
-      }
+    if (body.bonuses !== undefined && body.bonuses !== null && !(Array.isArray(body.bonuses) && body.bonuses.length === 0)) {
+      return { ok: false, reason: 'bonus_substitution_forbidden' };
+    }
+    if (!isPlainObject(body.wallet) || body.wallet.type !== 'real' || (body.wallet.bonusId !== undefined && body.wallet.bonusId !== null)) {
+      return { ok: false, reason: 'non_real_wallet_forbidden' };
     }
     if (!isPlainObject(body.coupon)) {
       return { ok: false, reason: 'coupon_not_an_object' };
     }
-    if (typeof body.coupon.amount !== 'number' || Math.abs(body.coupon.amount - expected.stake) > 1e-9) {
+    if (typeof body.coupon.amount !== 'number' || body.coupon.amount !== expected.stake) {
       return { ok: false, reason: `coupon_amount_mismatch:${body.coupon.amount}!=${expected.stake}` };
     }
     if (body.coupon.freebetId !== undefined && body.coupon.freebetId !== null) {
@@ -919,17 +933,20 @@ export class OneWinLiveCart {
     if (!isPlainObject(sel)) {
       return { ok: false, reason: 'selection_not_an_object' };
     }
-    if (String(sel.oddId || '') !== expected.selectionId) {
-      return { ok: false, reason: `odd_id_mismatch:${sel.oddId}!=${expected.selectionId}` };
+    if (typeof sel.oddId !== 'string' || sel.oddId !== expected.selectionId) {
+      return { ok: false, reason: `odd_id_mismatch:${String(sel.oddId).slice(0, 60)}!=${expected.selectionId}` };
     }
-    if (String(sel.matchId || '') !== expected.eventId) {
-      return { ok: false, reason: `match_id_mismatch:${sel.matchId}!=${expected.eventId}` };
+    // the client may carry the match id as a string or as a number, never as anything else
+    const matchIdOk = (typeof sel.matchId === 'string' && sel.matchId === expected.eventId)
+      || (typeof sel.matchId === 'number' && Number.isSafeInteger(sel.matchId) && String(sel.matchId) === expected.eventId);
+    if (!matchIdOk) {
+      return { ok: false, reason: `match_id_mismatch:${String(sel.matchId).slice(0, 40)}!=${expected.eventId}` };
     }
-    if (typeof sel.cf !== 'number' || Math.abs(sel.cf - expected.price) > 1e-9) {
+    if (typeof sel.cf !== 'number' || sel.cf !== expected.price) {
       return { ok: false, reason: `price_mismatch:${sel.cf}!=${expected.price}` };
     }
-    if (sel.marketId !== undefined && sel.marketId !== null && String(sel.marketId) !== expected.marketId) {
-      return { ok: false, reason: `market_id_mismatch:${sel.marketId}!=${expected.marketId}` };
+    if (sel.marketId !== undefined && sel.marketId !== null && !(typeof sel.marketId === 'string' && sel.marketId === expected.marketId)) {
+      return { ok: false, reason: `market_id_mismatch:${String(sel.marketId).slice(0, 40)}!=${expected.marketId}` };
     }
     return { ok: true };
   }
@@ -963,7 +980,12 @@ export class OneWinLiveCart {
         this.blocked_reasons.push(reason);
         if (reason === 'unexpected_mutation_while_armed') this.unexpectedMutations += 1;
       },
-      onAbortSignal: (reason) => this._signalGuardAbort?.(reason),
+      onAbortSignal: (reason) => {
+        // anything wrong while armed ends the armed window at once: a later exact POST is not forwarded
+        this.armedExpectation = null;
+        this.submitArmed = false;
+        this._signalGuardAbort?.(reason);
+      },
     });
     await guard.install();
     this._guard = guard;
@@ -992,22 +1014,30 @@ export class OneWinLiveCart {
     this.submitArmed = false;
     this.armedExpectation = null;
 
-    if (method !== 'POST' || !this.transportPolicy.betApiOrigins.includes(url.origin)
-      || !/\/bets\/make-bet-v2(?:\/|$)/i.test(url.pathname)) {
+    // exact verb, origin and path: a prefix, a suffix, another case or a trailing slash is another route
+    if (method !== 'POST' || !this.transportPolicy.betApiOrigins.includes(url.origin) || url.pathname !== SUBMIT_PATH) {
       return block(`make_bet_request_not_expected:${method}:${url.hostname}`, { signal: true });
     }
     if (!expected || this.submitSentCount >= 1) return block('unarmed_or_duplicate_make_bet_post', { signal: false });
 
+    // The body is read as TEXT and has to be exactly what JSON.stringify makes of its own parse: that
+    // rules out duplicate keys, padding, escapes and encodings a server might read differently.
+    if (typeof request.headers === 'function') {
+      const type = String((request.headers() || {})['content-type'] || '');
+      if (!/^application\/json\s*(?:;.*)?$/i.test(type)) return block('content_type_not_json', { signal: true });
+    }
+    let raw = null;
+    try {
+      raw = typeof request.postData === 'function' ? request.postData() : null;
+    } catch { raw = null; }
     let postBody = null;
     try {
-      if (typeof request.postDataJSON === 'function') {
-        postBody = request.postDataJSON();
-      } else {
-        postBody = JSON.parse(request.postData() || '{}');
-      }
+      if (typeof raw !== 'string' || raw.length === 0 || raw.length > 20000) throw new Error('no_text_body');
+      postBody = JSON.parse(raw);
     } catch {
       return block('invalid_json_in_post_body', { signal: false });
     }
+    if (JSON.stringify(postBody) !== raw) return block('body_not_canonical_json', { signal: true });
 
     const validation = this._validateMakeBetRequestBody(postBody, expected);
     if (!validation.ok) return block(validation.reason, { signal: true });

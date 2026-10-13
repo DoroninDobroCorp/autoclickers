@@ -59,7 +59,13 @@ function ingestFrame(direction, host, data, at) {
   if (!body || typeof body !== 'object') return;
   const payload = body.data;
   if (payload && typeof payload === 'object' && Array.isArray(payload.oddsGroups) && payload.matchId !== undefined) {
-    oddsByMatch.set(String(payload.matchId), { at, ts: payload.ts, groups: payload.oddsGroups, message_type: body.messageType || null });
+    // the list page subscribes with isBaseOddsGroups (a handful of base groups per match); the event page gets the
+    // full board. Keep the fuller board unless the stored one is old.
+    const key = String(payload.matchId);
+    const previous = oddsByMatch.get(key);
+    if (!previous || payload.oddsGroups.length >= previous.groups.length || at - previous.at > 8000) {
+      oddsByMatch.set(key, { at, ts: payload.ts, groups: payload.oddsGroups, message_type: body.messageType || null });
+    }
   } else if (payload && typeof payload === 'object' && payload.matchId !== undefined && 'sportId' in payload) {
     infoByMatch.set(String(payload.matchId), { at, ...payload });
   }
