@@ -54,6 +54,7 @@ def cart_plan_from_order(order: dict[str, Any], *, event_url: str, market_name: 
             "available_balance": account.get("available_balance"),
             "commission": order["commission"],
             "max_stake": order["max_stake"],
+            "capacity": copy.deepcopy(order["capacity"]),
             "live_submit_contract_verified": True,
         },
         "selection": {

@@ -302,6 +302,21 @@ class ReviewedBypassesLegacyVocabulary(StrictContractMixin, unittest.TestCase):
         self.assertAcceptedEverywhere(legacy_task(stake=1.0), legacy_quote(), legacy_account(), now=1002,
                                       diagnostic_only=True)
 
+    def test_capacity_roles_are_kept_apart(self):
+        wallet_capped = verify_live_execution_conditions(legacy_task(), legacy_quote(max_stake=8.45), legacy_account(),
+                                                         now=1002)["capacity"]
+        self.assertEqual(wallet_capped["returned_limit_basis"], "wallet_capped_market_limit_unknown")
+        self.assertIsNone(wallet_capped["market_limit"])
+        self.assertEqual(wallet_capped["market_limit_lower_bound"], 8.45)
+        self.assertEqual(wallet_capped["effective_capacity_for_stake"], 8.45)
+        market_limited = verify_live_execution_conditions(legacy_task(), legacy_quote(max_stake=3.0), legacy_account(),
+                                                          now=1002)["capacity"]
+        self.assertEqual(market_limited["returned_limit_basis"], "market_limited")
+        self.assertEqual(market_limited["market_limit"], 3.0)
+        self.assertIsNone(market_limited["market_limit_lower_bound"])
+        self.assertEqual(market_limited["wallet_balance"], 8.45)
+        self.assertEqual(market_limited["checked_stake"], 1.0)
+
     def test_order_keeps_native_evidence_origin_for_audit(self):
         order = verify_live_execution_conditions(legacy_task(), legacy_quote(), legacy_account(), now=1002)
         evidence = order["evidence"]

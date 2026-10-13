@@ -826,6 +826,17 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
         raise CommonTaskError('evidence expiry missing',['task_evidence_unproven'])
     actual=details['actual_axes'];expected=details['expected_axes']
     execution=task['quote'].get('execution') if isinstance(task['quote'].get('execution'),dict) else {}
+    # Wallet balance, the limit the bookmaker returned for this selection and the
+    # market limit are different facts. A returned limit equal to the wallet is
+    # wallet-capped and only proves "market limit >= returned"; it is never
+    # reported as the market maximum.
+    wallet=float(account_state['available_balance']);returned=float(quote['max_stake'])
+    wallet_capped=returned>=wallet-1e-9
+    capacity={'wallet_balance':wallet,'returned_limit':returned,
+              'returned_limit_basis':'wallet_capped_market_limit_unknown' if wallet_capped else 'market_limited',
+              'market_limit':None if wallet_capped else returned,
+              'market_limit_lower_bound':returned if wallet_capped else None,
+              'effective_capacity_for_stake':min(wallet,returned),'checked_stake':float(task['stake'])}
     executor_fields=('identity_verified_by','provider_id_namespace','provider_event_key','native_event_id','native_market_id',
                      'native_selection_id','source_market','odds','currency','evidence')
     return {
@@ -840,6 +851,7 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
         'expires_at':min(expiries[name] for name in _REQUIRED_EXPIRIES),
         'valuation_basis':copy.deepcopy(task.get('valuation_basis')),
         'reference':{'source':'BIA','role':'reference','executable':False},
+        'capacity':capacity,
         'evidence':{
             'expiries':{name:expiries[name] for name in _REQUIRED_EXPIRIES},
             'donor_parser_claim':copy.deepcopy(execution),
