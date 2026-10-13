@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { OneWinDryRunCart } from './browser_cart.mjs';
 
-const defaultChrome = '/home/ubuntu/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome';
 const browser = await chromium.launch({ headless: true,
-  executablePath: process.env.ONEWIN_TEST_CHROMIUM || (fs.existsSync(defaultChrome) ? defaultChrome : undefined),
+  executablePath: process.env.ONEWIN_TEST_CHROMIUM || undefined,
   args: ['--no-sandbox'] });
 const plan = { ok: true, selection: { event_id: '40021999',
   event_url: 'https://1win.pro/betting/match/sport/40021999', market_name: 'Total', price: 1.87 },

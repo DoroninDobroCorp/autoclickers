@@ -14,6 +14,17 @@ def _bounded_float(name: str, default: float, minimum: float) -> float:
     return value if math.isfinite(value) and value >= minimum else default
 
 
+def _optional_bounded_float(name: str, minimum: float) -> float | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = float(raw.strip())
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value >= minimum else None
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -35,6 +46,7 @@ class OneWinAutomationConfig:
     cache_ttl_sec: float = 0.75
     price_tolerance: float = 0.001
     max_stake: float = 50.0
+    default_stake: float | None = None
     live_enabled: bool = False
 
     @classmethod
@@ -50,5 +62,6 @@ class OneWinAutomationConfig:
             cache_ttl_sec=_bounded_float("ONEWIN_SPORTSBOOK_CACHE_TTL_SEC", 0.75, 0.0),
             price_tolerance=_bounded_float("ONEWIN_AUTOMATION_PRICE_TOLERANCE", 0.001, 0.0),
             max_stake=_bounded_float("ONEWIN_AUTOMATION_MAX_STAKE", 50.0, 0.01),
+            default_stake=_optional_bounded_float("ONEWIN_AUTOMATION_DEFAULT_STAKE", 0.01),
             live_enabled=_env_flag("ONEWIN_AUTOMATION_LIVE_ENABLED", False),
         )
