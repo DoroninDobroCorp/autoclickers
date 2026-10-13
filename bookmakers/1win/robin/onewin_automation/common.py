@@ -75,13 +75,6 @@ def _donor_axes(quote: Any, fallback: Any = None) -> Any:
     return fallback if isinstance(fallback, dict) and fallback else None
 
 
-def _normalised_axes(axes: Any, contexts: tuple[Any, ...] = (), label: str = "axes") -> dict[str, Any]:
-    try:
-        return normalise_axes(axes, contexts=contexts)
-    except AxesContractError as exc:
-        raise CommonTaskError(f"{label}: {exc}", [exc.code]) from exc
-
-
 def _valid_clock_argument(value: Any) -> bool:
     return (not isinstance(value, bool) and isinstance(value, (int, float))
             and math.isfinite(value) and value > 0)
