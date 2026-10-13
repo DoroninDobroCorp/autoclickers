@@ -217,15 +217,16 @@ export class DurableAttemptStore {
     const attemptsMap = new Map();
     if (Array.isArray(parsed.entries)) {
       for (const item of parsed.entries) {
-        if (Array.isArray(item) && item.length === 2 && typeof item[0] === 'string' && isPlainObject(item[1])) {
-          attemptsMap.set(item[0], item[1]);
+        if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== 'string' || !item[0].trim() || !isPlainObject(item[1])) {
+          throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_ENTRY');
         }
+        if (attemptsMap.has(item[0])) throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:DUPLICATE_KEY');
+        attemptsMap.set(item[0], item[1]);
       }
     } else if (isPlainObject(parsed.attempts)) {
       for (const [k, v] of Object.entries(parsed.attempts)) {
-        if (isPlainObject(v)) {
-          attemptsMap.set(k, v);
-        }
+        if (!k.trim() || !isPlainObject(v)) throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_LEGACY_ENTRY');
+        attemptsMap.set(k, v);
       }
     } else {
       throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_SCHEMA');
