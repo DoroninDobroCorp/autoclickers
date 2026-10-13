@@ -899,6 +899,17 @@ export class OneWinLiveCart {
     // The flag is derived from a handler that really is installed on this page.
     this.guarded = false;
     this._guardHandler = null;
+    // page.route() does not see requests answered or sent by a service worker. A context that
+    // already runs one is not guardable; the executor must create its context with
+    // serviceWorkers: 'block'.
+    try {
+      const context = typeof this.page.context === 'function' ? this.page.context() : null;
+      if (context && typeof context.serviceWorkers === 'function' && context.serviceWorkers().length > 0) {
+        throw new Error('SERVICE_WORKER_PRESENT');
+      }
+    } catch (err) {
+      if (String(err && err.message) === 'SERVICE_WORKER_PRESENT') throw err;
+    }
     const handler = (route) => this._handleRoute(route);
     await this.page.route('**/*', handler);
     this._guardHandler = handler;

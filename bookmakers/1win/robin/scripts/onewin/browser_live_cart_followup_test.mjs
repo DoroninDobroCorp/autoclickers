@@ -288,3 +288,14 @@ test('R-23 an orphaned reap guard and leftover temporary locks are cleaned inste
   new DurableAttemptStore(store.filePath);
   assert.equal(fs.existsSync(leftover), false);
 });
+
+// ------------------------------------------------------------------ service workers
+test('a context that already runs a service worker is not guardable and nothing is clicked', async (t) => {
+  const { cart, fake } = await newCart(t, { answer: OK_ANSWER });
+  fake.context = () => ({ serviceWorkers: () => [{ url: () => 'https://1win.pro/sw.js' }] });
+  const result = await cart.run(plan(), { now: () => 1000 });
+  assert.notEqual(result.status, 'ACCEPTED');
+  assert.match(String(result.error), /SERVICE_WORKER_PRESENT/);
+  assert.equal(fake.sent().length, 0);
+  assert.equal(cart.guarded, false);
+});
