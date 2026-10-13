@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 import inspect
 import math
 import re
@@ -21,6 +22,19 @@ class PlacementIndeterminate(RuntimeError):
 
 class PlacementRejected(RuntimeError):
     pass
+
+
+class PlacementRecordError(PlacementIndeterminate):
+    """The bookmaker outcome is known but could not be recorded durably.
+
+    ``receipt`` carries the outcome so that the caller can persist it elsewhere.
+    The attempt key stays claimed, so no second bet can be placed under it.
+    """
+
+    def __init__(self, message: str, *, status: str, receipt: dict[str, Any] | None):
+        super().__init__(message)
+        self.status = status
+        self.receipt = receipt
 
 
 class AttemptStore(Protocol):
@@ -62,7 +76,11 @@ class PlacementGate:
         attempt_store: AttemptStore | None = None,
         max_stake: float | None = None,
         default_stake: float | None = None,
+        require_verified_order: bool = False,
+        clock: Callable[[], float] | None = None,
     ):
+        self.require_verified_order = bool(require_verified_order)
+        self._clock = clock or (lambda: datetime.now(timezone.utc).timestamp())
         self.config = config or OneWinAutomationConfig.from_env()
         self.enabled = bool(enabled and self.config.live_enabled)
         self.transport = transport
@@ -78,21 +96,72 @@ class PlacementGate:
         transport: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
         attempt_store: AttemptStore,
         config: OneWinAutomationConfig | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> "PlacementGate":
-        """Pre-configured placement gate for the owner-authorized single 1 USDT diagnostic test."""
+        """Placement gate for the owner-authorized single 1 USDT diagnostic test.
+
+        It only places a payload that carries a verified ``automation-live-order.v1``
+        produced by ``verify_live_execution_conditions`` and re-checks the order's
+        absolute expiry after the SUBMITTING record, immediately before the transport.
+        """
         return cls(
             enabled=True,
             config=config or OneWinAutomationConfig(live_enabled=True, max_stake=1.0),
             transport=transport,
             attempt_store=attempt_store,
             max_stake=1.0,
+            require_verified_order=True,
+            clock=clock,
         )
+
+    def _check_order(self, payload: dict[str, Any], key: str, stake: float, currency: str) -> dict[str, Any]:
+        order = payload.get("order")
+        if not isinstance(order, dict) or order.get("schema_version") != "automation-live-order.v1":
+            raise BasketValidationError("a verified automation-live-order.v1 is required")
+        if order.get("execution_ready") is not True or order.get("execution_blockers"):
+            raise BasketValidationError("the order is not execution ready")
+        if str(order.get("idempotency_key") or "") != key:
+            raise BasketValidationError("order idempotency_key does not match the payload")
+        order_stake = order.get("stake")
+        if isinstance(order_stake, bool) or not isinstance(order_stake, (int, float)) or abs(float(order_stake) - stake) > 1e-9:
+            raise BasketValidationError("order stake does not match the payload")
+        if str(order.get("currency") or "").upper() != currency or currency != "USDT":
+            raise BasketValidationError("order currency does not match the payload")
+        for payload_key, order_key in (("event_id", "event_id"), ("market_id", "market_id"), ("selection_id", "selection_id")):
+            if payload_key in payload and str(payload[payload_key]) != str(order.get(order_key)):
+                raise BasketValidationError(f"order {order_key} does not match the payload")
+        expected_odds = payload.get("expected_odds", payload.get("odds"))
+        if expected_odds is not None:
+            order_odds = order.get("odds")
+            if isinstance(order_odds, bool) or not isinstance(order_odds, (int, float)) or float(order_odds) != float(expected_odds):
+                raise BasketValidationError("order odds do not match the payload")
+        self._assert_order_fresh(order)
+        return order
+
+    def _assert_order_fresh(self, order: dict[str, Any]) -> None:
+        expires_at = order.get("expires_at")
+        current = self._clock()
+        if (isinstance(expires_at, bool) or not isinstance(expires_at, (int, float)) or not math.isfinite(expires_at)
+                or isinstance(current, bool) or not isinstance(current, (int, float)) or not math.isfinite(current)
+                or current <= 0):
+            raise BasketValidationError("order expiry or clock is invalid")
+        if current >= expires_at:
+            raise BasketValidationError("order EXPIRED before the transport")
 
     async def _record_status(self, key: str, status: str, **kwargs: Any) -> None:
         if self.attempt_store is not None and hasattr(self.attempt_store, "record_status"):
             res = self.attempt_store.record_status(key, status, **kwargs)
             if inspect.isawaitable(res):
                 await res
+
+    async def _record_outcome(self, key: str, status: str, *, receipt: dict[str, Any] | None, **kwargs: Any) -> None:
+        """Record a post-transport outcome; a recording failure never hides the outcome."""
+        try:
+            await self._record_status(key, status, receipt=receipt, **kwargs)
+        except Exception as exc:
+            raise PlacementRecordError(
+                f"1win outcome {status} could not be recorded durably: {exc}", status=status, receipt=receipt
+            ) from exc
 
     async def place(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.enabled:
@@ -144,6 +213,10 @@ class PlacementGate:
         if not re.match(r"^[A-Z]{3,6}$", currency):
             raise BasketValidationError("currency is invalid")
 
+        order = None
+        if self.require_verified_order:
+            order = self._check_order(payload, key, stake_val, currency)
+
         normalized = dict(payload)
         normalized["stake"] = stake_val
         normalized["currency"] = currency
@@ -169,19 +242,26 @@ class PlacementGate:
 
         # 5. Record SUBMITTING stage prior to network transmission
         await self._record_status(key, "SUBMITTING")
+        if order is not None:
+            # Freshness is decided at the moment of permission, after the await above.
+            try:
+                self._assert_order_fresh(order)
+            except BasketValidationError as exc:
+                await self._record_status(key, "WITHDRAWN", error=str(exc), not_sent_proof={"forwarded_requests": 0})
+                raise
 
         # 6. Execute transport
         try:
             result = await self.transport(dict(normalized))
         except TimeoutError as exc:
-            await self._record_status(key, "INDETERMINATE", error=str(exc) or "timeout")
+            await self._record_outcome(key, "INDETERMINATE", receipt=None, error=str(exc) or "timeout")
             raise PlacementIndeterminate(str(exc) or "1win placement timed out after send") from exc
         except Exception as exc:
-            await self._record_status(key, "INDETERMINATE", error=str(exc) or type(exc).__name__)
+            await self._record_outcome(key, "INDETERMINATE", receipt=None, error=str(exc) or type(exc).__name__)
             raise PlacementIndeterminate(str(exc) or "1win placement result is indeterminate") from exc
 
         if not isinstance(result, dict):
-            await self._record_status(key, "INDETERMINATE", error="invalid response type")
+            await self._record_outcome(key, "INDETERMINATE", receipt=None, error="invalid response type")
             raise PlacementIndeterminate("1win placement returned an invalid response")
 
         status = str(result.get("status") or "").strip().upper()
@@ -196,17 +276,17 @@ class PlacementGate:
             or code in {"REJECTED", "DECLINED"}
             or err_code in self.KNOWN_REJECTIONS
         ):
-            await self._record_status(key, "REJECTED", receipt=result, error=detail)
+            await self._record_outcome(key, "REJECTED", receipt=result, error=detail)
             raise PlacementRejected(detail)
 
         # Check definitive acceptance
         if result.get("ok") is not True:
-            await self._record_status(key, "INDETERMINATE", receipt=result, error="no definitive receipt or rejection")
+            await self._record_outcome(key, "INDETERMINATE", receipt=result, error="no definitive receipt or rejection")
             raise PlacementIndeterminate("1win placement returned no definitive receipt or rejection")
 
         receipt_id = str(result.get("receipt_id") or "").strip()
         if not receipt_id:
-            await self._record_status(key, "INDETERMINATE", receipt=result, error="missing receipt identifier")
+            await self._record_outcome(key, "INDETERMINATE", receipt=result, error="missing receipt identifier")
             raise PlacementIndeterminate("1win placement response has no receipt identifier")
 
         # Check receipt field consistency
@@ -233,7 +313,7 @@ class PlacementGate:
             result["condition_mismatch"] = True
             result["condition_mismatches"] = mismatches
 
-        await self._record_status(key, "ACCEPTED", receipt=result)
+        await self._record_outcome(key, "ACCEPTED", receipt=result)
         return result
 
 
