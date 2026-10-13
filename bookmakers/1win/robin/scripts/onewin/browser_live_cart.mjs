@@ -19,6 +19,20 @@ const TRANSITIONS = new Map([
 ]);
 const GUESSED_UNITS = new Set(['', 'unknown', 'unverified', 'match_base_unit', 'unverified_from_dom_only', 'guessed']);
 const REQUIRED_AXIS_KEYS = ['period', 'scope', 'unit', 'market', 'side'];
+// Native odd ids seen in the first-party feed (2026-10-13): provider "10" (`10:<n>:<k>`) and the
+// provider-"1" form that carries the line (`1:<n>:_:<g>:<t>:<line>:_`, `_` for line-less markets).
+// Opaque to us: the guard compares the id byte for byte with the verified plan.
+const NATIVE_ODD_ID_FORMATS = [/^\d+:\d+:\d+$/, /^\d+:\d+:_:\d+:\d+:(?:-?\d+(?:\.\d+)?|_):_$/];
+function isNativeOddId(value) {
+  return typeof value === 'string' && NATIVE_ODD_ID_FORMATS.some((re) => re.test(value));
+}
+// The request the first-party client builds for make-bet-v2 (betting bundle, 2026-10-13). A field
+// outside this contract is contract drift: the request is not forwarded.
+const MAKE_BET_BODY_KEYS = new Set(['currencyCode', 'idempotencyKey', 'freebetId', 'bonusPercent', 'bonuses', 'amount', 'meta', 'coupon', 'wallet']);
+const MAKE_BET_COUPON_KEYS = new Set(['freebetId', 'amount', 'selections']);
+const MAKE_BET_SELECTION_KEYS = new Set(['oddId', 'cf', 'matchId', 'marketId']);
+const MAKE_BET_META_KEYS = new Set(['autoBetAmount', 'isDirtyAmountField', 'sharedBetCode']);
+const MAKE_BET_WALLET_KEYS = new Set(['type', 'bonusId']);
 const REQUIRED_EXPIRIES = ['task', 'donor', 'reference', 'margins', 'executor_quote', 'account'];
 // Directory fsync results that mean "this filesystem cannot do it" rather than
 // "the write failed". They are accepted only through an explicit opt-in and the
@@ -854,6 +868,24 @@ export class OneWinLiveCart {
     if (!isPlainObject(body)) {
       return { ok: false, reason: 'body_not_an_object' };
     }
+    const unknownKey = (value, allowed, where) => {
+      for (const key of Object.keys(value)) if (!allowed.has(key)) return `unexpected_${where}_field:${key.slice(0, 40)}`;
+      return null;
+    };
+    const drift = unknownKey(body, MAKE_BET_BODY_KEYS, 'body')
+      || (isPlainObject(body.coupon) ? unknownKey(body.coupon, MAKE_BET_COUPON_KEYS, 'coupon') : null)
+      || (isPlainObject(body.meta) ? unknownKey(body.meta, MAKE_BET_META_KEYS, 'meta') : null)
+      || (isPlainObject(body.wallet) ? unknownKey(body.wallet, MAKE_BET_WALLET_KEYS, 'wallet') : null)
+      || (body.coupon && Array.isArray(body.coupon.selections)
+        ? body.coupon.selections.map((sel) => (isPlainObject(sel) ? unknownKey(sel, MAKE_BET_SELECTION_KEYS, 'selection') : null)).find(Boolean) || null
+        : null);
+    if (drift) return { ok: false, reason: drift };
+    if (body.idempotencyKey !== undefined && (typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.trim())) {
+      return { ok: false, reason: 'idempotency_key_invalid' };
+    }
+    if (isPlainObject(body.meta) && body.meta.sharedBetCode !== undefined && body.meta.sharedBetCode !== null && body.meta.sharedBetCode !== '') {
+      return { ok: false, reason: 'shared_bet_code_forbidden' };
+    }
     if (body.currencyCode !== expected.currency) {
       return { ok: false, reason: `currency_code_mismatch:${body.currencyCode}!=${expected.currency}` };
     }
@@ -1136,7 +1168,7 @@ export class OneWinLiveCart {
     if (
       typeof selection.event_id !== 'string' || !/^\d+$/.test(selection.event_id) ||
       typeof selection.market_id !== 'string' || !selection.market_id.trim() ||
-      typeof selection.selection_id !== 'string' || !/^\d+:\d+:\d+$/.test(selection.selection_id) ||
+      !isNativeOddId(selection.selection_id) ||
       typeof selection.market_name !== 'string' || !selection.market_name.trim() ||
       typeof selection.price !== 'number' || !Number.isFinite(selection.price) || selection.price <= 1
     ) {

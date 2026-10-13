@@ -26,6 +26,7 @@ process.env.ONEWIN_AUTOMATION_LIVE_ENABLED = 'true';
 test.after(async () => { if (browser) await browser.close().catch(() => {}); if (stand) await stand.close().catch(() => {}); });
 
 const ODD = '10:193671744120169820:0';
+let currentOdd = ODD;
 const plan = (key) => {
   const axes = { period: 'full_time', scope: 'REG', unit: 'goals', market: 'total', line: 60.5, side: 'under',
     payout_rule: { status: 'not_declared', result_variant: null, draw_payout: null } };
@@ -37,14 +38,14 @@ const plan = (key) => {
     account_conditions: { logged_in: true, account_identity_verified: true, account_identity_source: 'local-stand', currency: 'USDT',
       available_balance: 8.45, commission: 0, max_stake: 8.45, live_submit_contract_verified: true },
     selection: { event_id: '40021999', event_url: `https://1win.pro:${stand.port}/betting/match/sport/40021999`, market_id: '6271',
-      market_name: 'Total', selection_id: ODD, price: 1.87, axes: { ...axes } },
+      market_name: 'Total', selection_id: currentOdd, price: 1.87, axes: { ...axes } },
     ui_selection_name: 'Under 60.5' };
 };
 
 async function placeWith(answer, key) {
   stand.reset();
   stand.hooks.makeBetAnswer = answer;
-  stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin }));
+  stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin, oddId: currentOdd }));
   const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
   try {
     const page = await context.newPage();
@@ -72,6 +73,66 @@ test('the request of the first-party client passes the cart validation and carri
   assert.deepEqual(Object.keys(body.coupon.selections[0]).sort(), ['cf', 'matchId', 'oddId']);
   assert.equal(r.attempt.status, 'ACCEPTED');
   assert.equal(r.selectionReleased, false, 'an accepted bet keeps its selection owned');
+});
+
+test('both native odd id forms of the feed are accepted, anything else is refused before a claim', async (t) => {
+  if (skip) return t.skip(skip);
+  try {
+    for (const odd of ['10:56847534920502740:0', '1:761353402:_:17:10:32.5:_', '1:761353402:_:1:1:_:_', '1:761353402:_:2:7:-1.5:_']) {
+      currentOdd = odd;
+      const r = await placeWith(null, `wire-odd-${odd.length}-${odd.charCodeAt(0)}-${odd.slice(-6).replace(/\W/g, '')}`);
+      assert.equal(r.result.status, 'ACCEPTED', `${odd}: ${JSON.stringify(r.result)}`);
+      assert.equal(r.requestBody.coupon.selections[0].oddId, odd);
+    }
+    for (const bad of ['', '10:abc:0', '10:1:2:3', '1:761353402:x:17:10:32.5:_', 'DROP:1:2', ' 10:1:2']) {
+      currentOdd = bad;
+      stand.reset();
+      const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+      try {
+        const page = await context.newPage();
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'onewin-wire-bad-'));
+        const cart = new OneWinLiveCart(page, { attemptStore: new DurableAttemptStore(path.join(dir, 'a.json')), liveEnabled: true,
+          transportPolicy: { betApiOrigins: [stand.betOrigin] } });
+        const out = await cart.run(plan('wire-bad-odd'), { now: () => Date.now() / 1000 }).catch((e) => ({ thrown: String(e.message) }));
+        assert.match(String(out.thrown || out.error), /EXACT_SELECTION_IDENTITY_REQUIRED/, JSON.stringify(bad));
+        assert.equal(stand.log.money.length, 0);
+      } finally { await context.close(); }
+    }
+  } finally { currentOdd = ODD; }
+});
+
+test('a request that drifts from the first-party contract is never forwarded and the attempt is withdrawn', async (t) => {
+  if (skip) return t.skip(skip);
+  const mutations = {
+    unknown_top_field: "body.fastBet = true;",
+    unknown_selection_field: "body.coupon.selections[0].stakeFactor = 2;",
+    shared_bet_code: "body.meta.sharedBetCode = 'ABC123';",
+    bonus_percent: "body.bonusPercent = 10;",
+    freebet: "body.freebetId = 'fb-1';",
+    wrong_amount: "body.amount = 9999; body.coupon.amount = 9999;",
+    wrong_odd: "body.coupon.selections[0].oddId = '10:1:1';",
+    wrong_cf: "body.coupon.selections[0].cf = 2.5;",
+    two_selections: "body.coupon.selections.push({ oddId: '10:2:2', cf: 1.5, matchId: '1' });",
+    bonus_wallet: "body.wallet = { type: 'bonus', bonusId: 'b1' };",
+    other_currency: "body.currencyCode = 'EUR';",
+  };
+  for (const [name, mutate] of Object.entries(mutations)) {
+    stand.reset();
+    stand.hooks.makeBetAnswer = null;
+    stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin, oddId: currentOdd, mutateBody: mutate }));
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+    try {
+      const page = await context.newPage();
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'onewin-wire-drift-'));
+      const store = new DurableAttemptStore(path.join(dir, 'a.json'));
+      const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: { betApiOrigins: [stand.betOrigin] } });
+      const r = await cart.run(plan(`wire-drift-${name}`), { now: () => Date.now() / 1000 });
+      assert.equal(stand.log.money.length, 0, `${name}: nothing may reach the bookmaker`);
+      assert.equal(r.status, 'ABORTED_PRE_SUBMIT', `${name}: ${JSON.stringify(r.error)}`);
+      assert.equal(r.submit_sent_count, 0);
+      assert.equal(store.getAttempt(`wire-drift-${name}`).status, 'WITHDRAWN');
+    } finally { await context.close(); }
+  }
 });
 
 const rejected = (code, extra = {}) => () => ({ result: { error: { code, ...extra } } });

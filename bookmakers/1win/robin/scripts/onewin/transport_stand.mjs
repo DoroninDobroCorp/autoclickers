@@ -43,7 +43,7 @@ export function chromiumPath() {
 // input, trash button, "Place a bet"). The submit handler posts a make-bet-v2 body to the bet API
 // origin of the stand. Used for end-to-end runs of the real carts in a real Chromium.
 export function eventPageHtml({ betOrigin, eventId = '40021999', marketId = '6271', oddId = '10:193671744120169820:0',
-  marketTitle = 'Total', outcomeName = 'Under 60.5', price = '1.87', extraGroups = '', extraScript = '' } = {}) {
+  marketTitle = 'Total', outcomeName = 'Under 60.5', price = '1.87', extraGroups = '', extraScript = '', mutateBody = '' } = {}) {
   return `<html><head><title>stand event</title></head><body>
 <div data-scope="ListGroup"><h2>${marketTitle}</h2>
   <button id="pick" data-odd="${oddId}" data-market="${marketId}" data-event="${eventId}"><span class="_name_">${outcomeName}</span><span class="_cf_">${price}</span></button></div>
@@ -66,6 +66,7 @@ document.getElementById('pick').addEventListener('click', () => {
       meta: { autoBetAmount: undefined, isDirtyAmountField: true, sharedBetCode: undefined },
       coupon: { amount, selections: [{ oddId: '${oddId}', cf: ${price}, matchId: '${eventId}' }] },
       wallet: { type: 'real' } };
+    ${mutateBody}
     try {
       const r = await fetch('${betOrigin}/bets/make-bet-v2', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       window.lastBetResponse = { status: r.status, body: await r.json().catch(() => null) };
@@ -160,6 +161,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
           amount: body?.amount ?? 1, currencyCode: body?.currencyCode ?? 'USDT' } } }));
         return;
       }
+      if (url.pathname === '/auth/login') { res.end(JSON.stringify({ result: { sessionToken: 'stand-session', userId: 1 } })); return; }
       if (url.pathname === '/bets/get-max-bet-amount') { res.end(JSON.stringify({ maxBetAmount: 8.45 })); return; }
       if (url.pathname === '/bets/get-base-settings') { res.end(JSON.stringify({ minBetAmount: 0.1, amountStep: 1 })); return; }
       res.end(JSON.stringify({ ok: true }));

@@ -41,9 +41,17 @@ test('HTTP classification: default deny for every non-read request that is not a
   assert.equal(c('POST', `${origin}/bets/get-auto-bet-amount-v2`), 'read_post');
   assert.equal(c('POST', `${origin}/matches/get-many`), 'read_post');
   assert.equal(c('POST', `${origin}/highlights/get-many`), 'read_post');
-  for (const refused of ['/monitoring/log-event', '/auth/login', '/matches/delete-many', '/bets/get-max-bet-amount/extra']) {
+  for (const refused of ['/monitoring/log-event', '/matches/delete-many', '/bets/get-max-bet-amount/extra']) {
     assert.equal(c('POST', `${origin}${refused}`), 'blocked', refused);
   }
+  // session bootstrap: only the public-token exchange, never a credential login
+  const login = (postBody) => classifyHttpRequest({ method: 'POST', url: `${origin}/auth/login`, postBody }).kind;
+  assert.equal(login({ publicToken: 'abc' }), 'read_post');
+  for (const bad of [undefined, null, {}, { publicToken: '' }, { publicToken: 'a', password: 'x' }, { email: 'a@b.c', password: 'x' }, [], 'x']) {
+    assert.equal(login(bad), 'blocked', JSON.stringify(bad));
+  }
+  assert.equal(classifyHttpRequest({ method: 'POST', url: 'https://1win.pro/auth/login', postBody: { publicToken: 'a' } }).kind, 'blocked',
+    'only the bet API origin may bootstrap a session');
   assert.equal(c('POST', 'https://evil.example/bets/get-max-bet-amount'), 'blocked', 'read endpoint on another origin');
   assert.equal(c('PUT', `${origin}/bets/get-max-bet-amount`), 'blocked');
   for (const url of [`${origin}/fortune-wheel/make-roll`, `${origin}/bets/api/v1/user/bets/ordinary`, `${origin}/bets/make-bet-v3`,
@@ -286,6 +294,8 @@ for (const kind of ['dry', 'live']) {
       assert.equal((await get(stand.betOrigin + '/bets/get-base-settings')).status, 200);
       assert.equal((await post(stand.betOrigin + '/bets/get-max-bet-amount', { currencyCode: 'USDT', coupon: { selections: [] } })).status, 200);
       assert.equal((await post(stand.betOrigin + '/bets/get-auto-bet-amount-v2', {})).status, 200);
+      assert.equal((await post(stand.betOrigin + '/auth/login', { publicToken: 'public' })).status, 200, 'session bootstrap passes');
+      assert.ok((await post(stand.betOrigin + '/auth/login', { email: 'a@b.c', password: 'secret' })).blocked, 'a credential login never passes');
       const feed = await wsExchange('/push-server-v2/', ['40',
         '42["subscribe",{"messageType":"subscribe-match-odds","data":{"matchIds":[1]}}]']);
       assert.ok(feed.received.some((m) => m.includes('match-odds-snapshot')));

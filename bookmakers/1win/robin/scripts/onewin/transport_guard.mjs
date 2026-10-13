@@ -33,6 +33,17 @@ export const READ_ONLY_POST_PATHS = Object.freeze([
   '/highlights/get-many',
 ]);
 
+// Session bootstrap of the first-party client: the public token of the logged-in page is exchanged
+// for the API session token (body {publicToken}, answer {sessionToken, userId}); every authenticated
+// API call, the limit lookup and make-bet-v2 included, needs it. Found on the real site: with this
+// POST refused the limit lookup answers `unauthenticated_error`. It is NOT a credential login: the
+// body must be exactly {publicToken: <string>}; anything else (a password, an e-mail) is refused.
+export const SESSION_BOOTSTRAP_POSTS = Object.freeze({
+  '/auth/login': (body) => Boolean(body) && typeof body === 'object' && !Array.isArray(body)
+    && Object.keys(body).length === 1 && typeof body.publicToken === 'string'
+    && body.publicToken.length > 0 && body.publicToken.length < 4096,
+});
+
 // Paths that move money or change a bet. Refused for EVERY method: a GET is not read-only just
 // because of its verb.
 const MONEY_PATH = new RegExp([
@@ -56,7 +67,7 @@ export function isMoneyPath(pathName) {
 
 // Pure HTTP classification. `kind` is one of
 //   read | read_post | submit_endpoint | blocked
-export function classifyHttpRequest({ method, url, betApiOrigins = DEFAULT_BET_API_ORIGINS, readOnlyPostPaths = READ_ONLY_POST_PATHS, live = false }) {
+export function classifyHttpRequest({ method, url, betApiOrigins = DEFAULT_BET_API_ORIGINS, readOnlyPostPaths = READ_ONLY_POST_PATHS, live = false, postBody }) {
   let parsed;
   try { parsed = url instanceof URL ? url : new URL(String(url)); } catch { return { kind: 'blocked', reason: 'unparseable_url' }; }
   const verb = String(method || '').toUpperCase();
@@ -73,6 +84,11 @@ export function classifyHttpRequest({ method, url, betApiOrigins = DEFAULT_BET_A
   }
   if (live && /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName)) return { kind: 'submit_endpoint' };
   if (verb === 'POST' && origins.has(parsed.origin) && readOnlyPostPaths.includes(pathName)) return { kind: 'read_post' };
+  if (verb === 'POST' && origins.has(parsed.origin) && Object.hasOwn(SESSION_BOOTSTRAP_POSTS, pathName)) {
+    return SESSION_BOOTSTRAP_POSTS[pathName](postBody)
+      ? { kind: 'read_post', session: true }
+      : { kind: 'blocked', reason: 'session_bootstrap_unexpected_body', money: false };
+  }
   if (isMoneyPath(pathName)) return { kind: 'blocked', reason: live && /make-?bet/i.test(pathName) ? 'unknown_bet_endpoint' : 'forbidden_mutation_path', money: true };
   return { kind: 'blocked', reason: 'unknown_mutation_blocked', money: false };
 }
@@ -325,8 +341,12 @@ export class TransportGuard {
       this._seen.add(request);
     }
     try {
+      let postBody;
+      if (method === 'POST' && Object.hasOwn(SESSION_BOOTSTRAP_POSTS, url.pathname)) {
+        try { postBody = typeof request.postDataJSON === 'function' ? request.postDataJSON() : JSON.parse(request.postData() || 'null'); } catch { postBody = null; }
+      }
       const verdict = classifyHttpRequest({ method, url, betApiOrigins: this.betApiOrigins,
-        readOnlyPostPaths: this.readOnlyPostPaths, live: this.mode === 'live' });
+        readOnlyPostPaths: this.readOnlyPostPaths, live: this.mode === 'live', postBody });
       if (verdict.kind === 'canary') {
         this._canary.http += 1;
         return route.abort();
