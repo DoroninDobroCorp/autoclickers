@@ -101,7 +101,7 @@ export async function startStand({ tls = false } = {}) {
   };
   let betSeq = 0;
   // test hook: (body) => JSON-able answer of make-bet-v2; null = the default accepted answer
-  const hooks = { makeBetAnswer: null };
+  const hooks = { makeBetAnswer: null, makeBetDelayMs: 0, onMakeBet: null };
   const isMoneyPath = (p) => /\/bets\/(?:make-bet|refund|cashout|sell)|\/fortune-wheel\/make-roll|\/bets\/api\/v1\/user\/bets\/ordinary/i.test(p);
 
   const pages = new Map();
@@ -156,9 +156,19 @@ self.addEventListener('message',async e=>{const m=e.data||{};
       if (isMoneyPath(url.pathname) && req.method !== 'GET') {
         betSeq += 1;
         log.money.push({ via: 'http', ...entry, id: betSeq });
-        if (hooks.makeBetAnswer) { res.end(JSON.stringify(hooks.makeBetAnswer(body, betSeq))); return; }
-        res.end(JSON.stringify({ result: { success: { betId: `STAND-${betSeq}`, cf: body?.coupon?.selections?.[0]?.cf ?? 1.87,
-          amount: body?.amount ?? 1, currencyCode: body?.currencyCode ?? 'USDT' } } }));
+        if (hooks.onMakeBet) { try { hooks.onMakeBet(body, betSeq); } catch { /* observer */ } }
+        const answer = hooks.makeBetAnswer ? hooks.makeBetAnswer(body, betSeq)
+          : { result: { success: { betId: `STAND-${betSeq}`, cf: body?.coupon?.selections?.[0]?.cf ?? 1.87,
+            amount: body?.amount ?? 1, currencyCode: body?.currencyCode ?? 'USDT',
+            possibleProfitAmount: Number(((body?.amount ?? 1) * (body?.coupon?.selections?.[0]?.cf ?? 1.87)).toFixed(2)) } } };
+        const send = () => { try { res.end(JSON.stringify(answer)); } catch { /* client gone */ } };
+        if (hooks.makeBetDelayMs > 0) setTimeout(send, hooks.makeBetDelayMs); else send();
+        return;
+      }
+      if (url.pathname === '/bets/stand-history') {
+        res.end(JSON.stringify({ result: { items: log.money.filter((m) => m.via === 'http').map((m) => ({ betId: `STAND-${m.id}`,
+          idempotencyKey: m.body && m.body.idempotencyKey, amount: m.body && m.body.amount, currencyCode: m.body && m.body.currencyCode,
+          oddId: m.body && m.body.coupon && m.body.coupon.selections[0].oddId })) } }));
         return;
       }
       if (url.pathname === '/auth/login') { res.end(JSON.stringify({ result: { sessionToken: 'stand-session', userId: 1 } })); return; }
