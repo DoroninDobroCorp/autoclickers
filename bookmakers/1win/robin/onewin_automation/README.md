@@ -125,3 +125,38 @@ The live automation gate and operational handoff have been successfully verified
    - Payload: `{"betType":"SINGLE","orders":[{"coefficient":1.85,"gameId":39391033,"marketId":"total_1_o_1.5","oddsGroup":"total","oddsGroupId":5,"outcome":"1.5","source":"LINE","sportId":1}],"amount":1}`
    - Result: `{"success":true,"payload":{"id":311687190,"amount":1,"coefficient":1.85,"type":"SINGLE","state":"PENDING",...}}`
 7. **Post-Placement Recording**: Automated persistence via `scripts/onewin_record_bet.py` into `.bet_match_history.json`.
+
+---
+
+## Strict live contract (2026-10-13 review)
+
+`common.py` holds one decision function, `evaluate_live_conditions`. `assess_live_readiness`
+(presentation) and `verify_live_execution_conditions` (permission) are two views of it and cannot
+disagree. It never raises and returns machine-readable blockers; the permission view raises
+`CommonTaskError` carrying the same list. A bare `true` flag is never enough: account identity and
+the live submit wire contract need a non-empty `*_source`; every piece of evidence needs a source
+clock/provenance and an absolute expiry (task, donor, reference, margins, executor quote, account);
+`now` must be a positive finite number.
+
+Axes: the platform serialises `CanonicalOutcomeAxes` in `<quote>.market_axes`. `axes.py`
+(`platform-canonical-axes-adapter.v1`) turns them into settlement facts; the original object is kept
+next to the adapter version. Scope (regulation / overtime) comes from an explicit table keyed by
+`(sport, period token, family)`; `ft` is never assumed to be regulation. Display `key` and nested
+`arb_groups` are diagnostics and are not compared. Incomplete or unregistered markets stay
+diagnostic: they can be queued but never dry-verified or executed. Executability follows the donor
+(1win) leg only; BIA reference axes are retained for audit.
+
+Executor evidence must be in the same vocabulary. Echoing the parser's axes is not independent
+evidence - see `native_axes.py` (when present) for the deriver from native 1win market text.
+
+Durable attempts (`DurableAttemptStore` in Python, `DurableAttemptStore` in
+`scripts/onewin/browser_live_cart.mjs`): terminal records are sealed, phase order is enforced, a
+potential submit can only be withdrawn with proof that nothing was forwarded, persisted rows are
+validated when the store opens, one live intent per native selection is allowed unless the earlier
+attempt was rejected or withdrawn, and corrections are appended as audit revisions. The JS store
+reports every write/sync error and becomes non-durable (blocking placement) when one occurs.
+
+Queue route: `queue_adapter.py` converts the item the real Node `TaskBuilder`/`TasksManager`
+stores into `automation-task.v1`; `cart_plan.py` turns a verified order into the plan consumed by
+`OneWinLiveCart`, whose route guard re-checks the clock, the earliest evidence expiry, withdrawal and
+the attempt state at the moment a POST is permitted.
