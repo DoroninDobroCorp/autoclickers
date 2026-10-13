@@ -60,7 +60,8 @@ async function withBrowser(t, fn) {
       market_id: '6271', selection_id: plan.selection.selection_id } });
     await store.record(plan.idempotency_key, 'PRE_CHECK_PASSED');
     await store.record(plan.idempotency_key, 'SUBMITTING');
-    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true });
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true,
+      transportPolicy: { betApiOrigins: [`http://${HOST}:${port}`] } });
     const clock = { t: 1000 };
     cart._runtime = { now: () => clock.t, cancelled: async () => false };
     await cart.installGuard();

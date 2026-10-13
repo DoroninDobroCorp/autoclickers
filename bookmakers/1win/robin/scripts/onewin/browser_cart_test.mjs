@@ -25,7 +25,9 @@ async function run(groups) {
   await page.goto(plan.selection.event_url);
   const result = await new OneWinDryRunCart(page).run(plan);
   const clicks = await page.evaluate(() => window.selectionClicks);
-  assert.equal(intercepted, 1, 'the fixture must never request the bookmaker');
+  // initial navigation + the fresh-document navigation the guard performs after installation (the
+  // guard never trusts a document that predates it); nothing else may reach the fixture.
+  assert.equal(intercepted, 2, 'the fixture must never request the bookmaker');
   assert.equal(result.external_placement, false);
   assert.equal(result.cart_cleared, true);
   assert.equal(result.blocked_submit_requests, 0);
@@ -66,7 +68,7 @@ try {
     assert.ok(guardedCart.blocked.includes(path), 'the cart guard itself must reject the mutation');
   }
   const lookupStatus = await page.evaluate(async () =>
-    (await fetch('/bets/get-max-bet-amount', { method: 'POST', body: '{}' })).status);
+    (await fetch('https://api-gateway.top-parser.com/bets/get-max-bet-amount', { method: 'POST', body: '{}' })).status);
   assert.equal(lookupStatus, 200, 'the read-only market limit lookup must remain available');
   assert.equal(requestsReachingFixture, 2, 'only navigation and the read-only lookup reach the fixture');
   assert.equal(guardedCart.blocked.length, 2);

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseAmount, eventIdFromUrl } from './browser_cart.mjs';
+import { TransportGuard, DEFAULT_BET_API_ORIGINS, READ_ONLY_POST_PATHS } from './transport_guard.mjs';
 
 const TERMINAL_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'INDETERMINATE', 'WITHDRAWN']);
 const VALID_STATUSES = new Set(['CLAIMED', 'PRE_CHECK_PASSED', 'SUBMITTING', ...TERMINAL_STATUSES]);
@@ -23,7 +24,6 @@ const REQUIRED_EXPIRIES = ['task', 'donor', 'reference', 'margins', 'executor_qu
 // "the write failed". They are accepted only through an explicit opt-in and the
 // resulting durability level is recorded; EIO and everything else is fatal.
 const UNSUPPORTED_DIR_SYNC_CODES = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP']);
-const BET_API_HOSTS = new Set(['api-gateway.top-parser.com']);
 const KNOWN_REJECTIONS = new Set([
   'not_enough_funds', 'zero_bet', 'odd_closed', 'odd_not_found',
   'currency_not_supported', 'odd_cf_changed', 'min_bet_amount',
@@ -770,8 +770,16 @@ export class DurableAttemptStore {
 }
 
 export class OneWinLiveCart {
-  constructor(page, { attemptStore, liveEnabled = false, maxBudgetUsdt = 1.0, diagnosticMode = true } = {}) {
+  constructor(page, { attemptStore, liveEnabled = false, maxBudgetUsdt = 1.0, diagnosticMode = true, transportPolicy = {} } = {}) {
     this.page = page;
+    // Only the origin list is meant to differ (a local stand); the defaults are the production values.
+    this.transportPolicy = {
+      betApiOrigins: Array.isArray(transportPolicy.betApiOrigins) ? [...transportPolicy.betApiOrigins] : [...DEFAULT_BET_API_ORIGINS],
+      readOnlyPostPaths: Array.isArray(transportPolicy.readOnlyPostPaths) ? [...transportPolicy.readOnlyPostPaths] : [...READ_ONLY_POST_PATHS],
+      blockWorkers: transportPolicy.blockWorkers !== false,
+    };
+    this._guard = null;
+    this._lastCoverage = null;
     this.attemptStore = attemptStore || null;
     this.liveEnabled = Boolean(liveEnabled);
     this.maxBudgetUsdt = Number(maxBudgetUsdt);
@@ -895,13 +903,13 @@ export class OneWinLiveCart {
   }
 
   async installGuard() {
-    if (this.guarded && typeof this._guardHandler === 'function' && this._guardedPage === this.page) return;
-    // The flag is derived from a handler that really is installed on this page.
+    if (this.guarded && typeof this._guardHandler === 'function' && this._guardedPage === this.page && this._guard) return;
+    // The flag is derived from a guard that really is installed on this page.
     this.guarded = false;
     this._guardHandler = null;
-    // page.route() does not see requests answered or sent by a service worker. A context that
-    // already runs one is not guardable; the executor must create its context with
-    // serviceWorkers: 'block'.
+    this._guard = null;
+    // A context that already runs a service worker is not guardable (a worker owns requests and
+    // sockets outside any route); the executor must create its context with serviceWorkers: 'block'.
     try {
       const context = typeof this.page.context === 'function' ? this.page.context() : null;
       if (context && typeof context.serviceWorkers === 'function' && context.serviceWorkers().length > 0) {
@@ -910,79 +918,80 @@ export class OneWinLiveCart {
     } catch (err) {
       if (String(err && err.message) === 'SERVICE_WORKER_PRESENT') throw err;
     }
-    const handler = (route) => this._handleRoute(route);
-    await this.page.route('**/*', handler);
-    this._guardHandler = handler;
+    const guard = new TransportGuard({
+      page: this.page,
+      mode: 'live',
+      betApiOrigins: this.transportPolicy.betApiOrigins,
+      readOnlyPostPaths: this.transportPolicy.readOnlyPostPaths,
+      blockWorkers: this.transportPolicy.blockWorkers,
+      isArmed: () => Boolean(this.armedExpectation),
+      decideSubmit: (ctx) => this._decideSubmit(ctx),
+      onBlocked: ({ path: blockedPath, reason }) => {
+        this.blocked.push(blockedPath);
+        this.blocked_reasons.push(reason);
+        if (reason === 'unexpected_mutation_while_armed') this.unexpectedMutations += 1;
+      },
+      onAbortSignal: (reason) => this._signalGuardAbort?.(reason),
+    });
+    await guard.install();
+    this._guard = guard;
+    this._guardHandler = guard._handlers[0];
     this._guardedPage = this.page;
     this.guarded = true;
   }
 
-  async _handleRoute(route) {
-    const request = route.request();
-    const url = new URL(request.url());
-    const pathName = url.pathname;
-    const method = String(request.method()).toUpperCase();
-    const isRead = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
-    const refuse = (reason, signal = true) => {
-      this.blocked.push(pathName);
-      this.blocked_reasons.push(reason);
-      if (signal) this._signalGuardAbort?.(reason);
-      return route.abort();
-    };
+  // Empirical proof that every transport layer is active on the CURRENT document. A failed layer
+  // is a refusal: nothing is clicked, nothing is armed.
+  async _assertTransportCoverage() {
+    if (!this._guard) throw new Error('GUARD_NOT_INSTALLED');
+    const verdict = await this._guard.verifyCoverage();
+    this._lastCoverage = verdict;
+    if (!verdict.ok) {
+      const failed = Object.entries(verdict.checks || {}).filter(([, ok]) => ok !== true).map(([name]) => name);
+      throw new Error(`TRANSPORT_GUARD_UNVERIFIED:${failed.join(',') || verdict.error || 'unknown'}`);
+    }
+    return verdict;
+  }
 
-    const isForbiddenMutation = /\/bets\/(?:refund|cashout|sell)(?:\/|$)/i.test(pathName)
-      || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager|express-ordinary|\/ordinary(?:\/|$))/i.test(pathName);
-    if (!isRead && isForbiddenMutation) return refuse('forbidden_mutation_path', false);
+  // The make-bet endpoint: validated against the armed, exact expectation. Everything else that is
+  // not a read never reaches this method (the guard refuses it by default).
+  async _decideSubmit({ route, request, url, method, block }) {
+    const expected = this.armedExpectation;
+    this.submitArmed = false;
+    this.armedExpectation = null;
 
-    const isMakeBet = /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName);
-    // Any other placement endpoint (another version, another verb, another host) is unknown
-    // territory: it is stopped instead of being waved through.
-    if (!isRead && !isMakeBet && /make-?bet/i.test(pathName)) return refuse('unknown_bet_endpoint');
+    if (method !== 'POST' || !this.transportPolicy.betApiOrigins.includes(url.origin)
+      || !/\/bets\/make-bet-v2(?:\/|$)/i.test(url.pathname)) {
+      return block(`make_bet_request_not_expected:${method}:${url.hostname}`, { signal: true });
+    }
+    if (!expected || this.submitSentCount >= 1) return block('unarmed_or_duplicate_make_bet_post', { signal: false });
 
-    if (isMakeBet && !isRead) {
-      const expected = this.armedExpectation;
-      this.submitArmed = false;
-      this.armedExpectation = null;
-
-      if (method !== 'POST' || !BET_API_HOSTS.has(url.hostname)) {
-        return refuse(`make_bet_request_not_expected:${method}:${url.hostname}`);
-      }
-      if (!expected || this.submitSentCount >= 1) return refuse('unarmed_or_duplicate_make_bet_post', false);
-
-      let postBody = null;
-      try {
-        if (typeof request.postDataJSON === 'function') {
-          postBody = request.postDataJSON();
-        } else {
-          postBody = JSON.parse(request.postData() || '{}');
-        }
-      } catch {
-        return refuse('invalid_json_in_post_body', false);
-      }
-
-      const validation = this._validateMakeBetRequestBody(postBody, expected);
-      if (!validation.ok) return refuse(validation.reason);
-
-      // Freshness is decided at the moment of permission, not at an earlier
-      // await: withdrawal first (awaited), then one synchronous check of the
-      // clock, the earliest evidence expiry and the durable attempt state.
-      let boundary;
-      if (await this._cancelledAtBoundary()) {
-        boundary = { ok: false, reason: 'cancelled_at_post_boundary' };
+    let postBody = null;
+    try {
+      if (typeof request.postDataJSON === 'function') {
+        postBody = request.postDataJSON();
       } else {
-        boundary = this._postBoundaryCheck(expected);
+        postBody = JSON.parse(request.postData() || '{}');
       }
-      if (!boundary.ok) return refuse(boundary.reason);
-
-      this.submitSentCount += 1;
-      return route.fallback();
+    } catch {
+      return block('invalid_json_in_post_body', { signal: false });
     }
 
-    if (!isRead && this.armedExpectation) {
-      // While the submit is armed nothing but the expected POST may mutate anything.
-      this.unexpectedMutations += 1;
-      return refuse('unexpected_mutation_while_armed');
+    const validation = this._validateMakeBetRequestBody(postBody, expected);
+    if (!validation.ok) return block(validation.reason, { signal: true });
+
+    // Freshness is decided at the moment of permission, not at an earlier
+    // await: withdrawal first (awaited), then one synchronous check of the
+    // clock, the earliest evidence expiry and the durable attempt state.
+    let boundary;
+    if (await this._cancelledAtBoundary()) {
+      boundary = { ok: false, reason: 'cancelled_at_post_boundary' };
+    } else {
+      boundary = this._postBoundaryCheck(expected);
     }
+    if (!boundary.ok) return block(boundary.reason, { signal: true });
+
+    this.submitSentCount += 1;
     return route.fallback();
   }
 
@@ -1247,11 +1256,14 @@ export class OneWinLiveCart {
       if (await cancelled()) throw new Error('CANCELLED');
 
       await phase('navigation', async () => {
+        // A document that predates the guard may hold sockets or workers outside it: leave it.
+        await this._guard.ensureFreshDocument();
         if (eventIdFromUrl(this.page.url()) !== selection.event_id) {
           await this.page.goto(selection.event_url, { waitUntil: 'domcontentloaded', timeout: 20000 });
         }
         await this.slip().getByText('Betslip', { exact: true }).waitFor({ timeout: 10000 });
       });
+      await phase('transport_coverage', () => this._assertTransportCoverage());
 
       await phase('initial_cleanup', () => this.clear());
       if (await cancelled()) throw new Error('CANCELLED');
@@ -1307,6 +1319,8 @@ export class OneWinLiveCart {
         if (!await submitBtn.isVisible() || !await submitBtn.isEnabled()) {
           throw new Error('SUBMIT_BUTTON_UNAVAILABLE');
         }
+        // Last proof before the point of no return, on the document that will send the request.
+        await this._assertTransportCoverage();
         await this.attemptStore.record(idempotencyKey, 'SUBMITTING');
         const responsePromise = this.page.waitForResponse(
           res => /\/bets\/make-bet-v2(?:\/|$)/i.test(new URL(res.url()).pathname) && res.request().method() === 'POST',
@@ -1510,6 +1524,10 @@ export class OneWinLiveCart {
       }
       result.elapsed_ms = Math.round(performance.now() - started);
       result.submit_sent_count = this.submitSentCount;
+      result.transport_guard = this._guard
+        ? { ...this._guard.report(), coverage: this._lastCoverage ? this._lastCoverage.checks || null : null,
+          violation_kinds: [...new Set(this._guard.violations.map((v) => v.kind))] }
+        : null;
       result.blocked_submit_requests = this.blocked.length;
       result.blocked_reasons = [...this.blocked_reasons];
       this._runtime = null;

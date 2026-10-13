@@ -1,4 +1,6 @@
 // Authenticated, DOM-only prepare-and-clear. Intentionally no place() method.
+import { TransportGuard, DEFAULT_BET_API_ORIGINS, READ_ONLY_POST_PATHS } from './transport_guard.mjs';
+
 export function parseAmount(text) {
   let numeric = String(text).trim().replace(/^[A-Z]{3,6}\s+/i, '').trim();
   // The English coupon masks 9999 as "USDT 9,999.00". Commas in a
@@ -19,22 +21,38 @@ export function eventIdFromUrl(value) {
 }
 
 export class OneWinDryRunCart {
-  constructor(page) { this.page = page; this.busy = false; this.blocked = []; }
+  constructor(page, { transportPolicy = {} } = {}) {
+    this.page = page;
+    this.busy = false;
+    this.blocked = [];            // money mutations the page tried (path list)
+    this.blockedUnknown = [];     // other non-read transport the page tried: {kind, path, reason}
+    this._guard = null;
+    this.transportPolicy = {
+      betApiOrigins: Array.isArray(transportPolicy.betApiOrigins) ? [...transportPolicy.betApiOrigins] : [...DEFAULT_BET_API_ORIGINS],
+      readOnlyPostPaths: Array.isArray(transportPolicy.readOnlyPostPaths) ? [...transportPolicy.readOnlyPostPaths] : [...READ_ONLY_POST_PATHS],
+      blockWorkers: transportPolicy.blockWorkers !== false,
+    };
+  }
 
+  // Read-only means no money mutation by ANY transport: HTTP (default-deny for every non-read
+  // request that is not a proven read endpoint), WebSocket frames (allow-list), workers and
+  // service workers (removed), popups (context-level routing). See transport_guard.mjs.
   async installGuard() {
-    if (this.guarded) return;
-    this.guarded = true;
-    await this.page.route('**/*', async route => {
-      const request = route.request();
-      const path = new URL(request.url()).pathname;
-      const mutatesCoupon = /\/bets\/(?:make-bet(?:-v\d+)?|refund)(?:\/|$)/i.test(path)
-        || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager)/i.test(path);
-      if (request.method() === 'POST' && mutatesCoupon) {
-        this.blocked.push(path);
-        return route.abort();
-      }
-      return route.fallback();
+    if (this.guarded && this._guard) return;
+    const guard = new TransportGuard({
+      page: this.page,
+      mode: 'read_only',
+      betApiOrigins: this.transportPolicy.betApiOrigins,
+      readOnlyPostPaths: this.transportPolicy.readOnlyPostPaths,
+      blockWorkers: this.transportPolicy.blockWorkers,
+      onBlocked: ({ kind, path, reason, money }) => {
+        if (money) this.blocked.push(path);
+        else this.blockedUnknown.push({ kind, path, reason });
+      },
     });
+    await guard.install();
+    this._guard = guard;
+    this.guarded = true;
     // Defense in depth against accidental submit clicks in this test page.
     const preventSubmit = () => document.addEventListener('click', e => {
       const button = e.target.closest?.('button');
@@ -85,10 +103,20 @@ export class OneWinDryRunCart {
       await this.installGuard();
       if (await cancelled()) throw new Error('CANCELLED');
       await phase('navigation', async()=>{
+        // A document that predates the guard may hold sockets or workers outside it: leave it.
+        await this._guard.ensureFreshDocument();
         if (eventIdFromUrl(this.page.url()) !== selection.event_id) {
           await this.page.goto(selection.event_url,{waitUntil:'domcontentloaded',timeout:20000});
         }
         await this.slip().getByText('Betslip',{exact:true}).waitFor({timeout:10000});
+      });
+      await phase('transport_coverage', async()=>{
+        const verdict = await this._guard.verifyCoverage();
+        result.transport_coverage = verdict.checks || null;
+        if (!verdict.ok) {
+          const failed = Object.entries(verdict.checks || {}).filter(([,ok])=>ok!==true).map(([name])=>name);
+          throw new Error(`TRANSPORT_GUARD_UNVERIFIED:${failed.join(',') || verdict.error || 'unknown'}`);
+        }
       });
       await phase('initial_cleanup',()=>this.clear());
       if (await cancelled()) throw new Error('CANCELLED');
@@ -138,6 +166,8 @@ export class OneWinDryRunCart {
       else result.stage = result.cart_cleared ? 'completed' : 'cleanup';
       result.elapsed_ms = Math.round(performance.now()-started);
       result.blocked_submit_requests = this.blocked.length;
+      result.blocked_unknown_transport = this.blockedUnknown.slice(0, 50);
+      result.transport_guard = this._guard ? this._guard.report() : null;
       if (this.blocked.length) result.ok = false;
       this.busy = false;
     }
