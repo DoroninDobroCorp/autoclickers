@@ -42,3 +42,112 @@ class JevBridgeTests(unittest.IsolatedAsyncioTestCase):
   instants=iter([1001,1006])
   result=await review_with_jev(task,Client(),lambda **kw:kw,clock=lambda:next(instants))
   self.assertEqual(result['status'],'INVESTIGATE');self.assertFalse(result['execution_ready'])
+
+
+class LiveExecutionGuardTests(unittest.TestCase):
+ def task(self, stake=1.0):
+  q={'source':'1win','source_event_key':'40021999','source_market':'T< 60.5','odds':1.87,'source_ts':1000}
+  r={**q,'source':'BIA','source_event_key':'r','odds':1.80}
+  return task_from_value(
+   {'event_id':'canonical','isLive':True,'first':{'bookmaker':'BIA','matchId':'r'},'second':{'bookmaker':'1win','matchId':'40021999'}},
+   {'outcome':'T< 60.5','score1':{'value':1.80},'score2':{'value':1.87},'reference_quote':r,'donor_quote':q,'margin_quotes':[r]},
+   stake=stake,idempotency_key='live-attempt-1',now=1001
+  )
+
+ def test_durable_attempt_store_claim_and_terminal_lock(self):
+  from onewin_automation.common import DurableAttemptStore
+  with tempfile.TemporaryDirectory() as d:
+   db_path = d + '/live_attempts.sqlite'
+   store = DurableAttemptStore(db_path)
+   self.assertTrue(store.claim('live-attempt-1', stake=1.0, currency='USDT', payload={'event_id':'40021999'}, now=1001))
+   self.assertFalse(store.claim('live-attempt-1', stake=1.0, currency='USDT', now=1002))
+   store.close()
+   # Reopen to verify durability across restart
+   store = DurableAttemptStore(db_path)
+   self.assertFalse(store.claim('live-attempt-1', stake=1.0, currency='USDT', now=1003))
+   store.record_status('live-attempt-1', 'INDETERMINATE', error='timeout', now=1004)
+   with self.assertRaises(CommonTaskError):
+    store.record_status('live-attempt-1', 'SUBMITTING', now=1005)
+   with self.assertRaises(CommonTaskError):
+    store.claim('budget-exceeded', stake=2.0, currency='USDT', now=1005)
+   store.close()
+
+ def test_verify_live_execution_conditions_enforces_all_guards(self):
+  from onewin_automation.common import verify_live_execution_conditions
+  task = self.task(stake=1.0)
+  exec_quote = {
+   'identity_verified_by': 'onewin-executor',
+   'verified': True,
+   'provider_id_namespace': 'top-parser:1win',
+   'provider_event_key': '40021999',
+   'native_event_id': '40021999',
+   'native_market_id': '6271',
+   'native_selection_id': '10:193671744120169820:0',
+   'source_market': 'T< 60.5',
+   'odds': 1.87,
+   'source_ts': 1001,
+   'max_stake': 8.45,
+   'currency': 'USDT',
+  }
+  acct = {'logged_in': True, 'currency': 'USDT', 'available_balance': 8.45}
+  order = verify_live_execution_conditions(task, exec_quote, acct, now=1002)
+  self.assertEqual(order['stake'], 1.0)
+  self.assertEqual(order['currency'], 'USDT')
+
+  # Budget > 1.0 USDT rejected
+  big_task = self.task(stake=5.0)
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(big_task, exec_quote, acct, now=1002)
+
+  # Unauthenticated account rejected
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, exec_quote, {**acct, 'logged_in': False}, now=1002)
+
+  # Wrong currency rejected
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, exec_quote, {**acct, 'currency': 'RUB'}, now=1002)
+
+  # Price drift rejected
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, {**exec_quote, 'odds': 1.82}, acct, now=1002)
+
+  # Expired quote rejected
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, exec_quote, acct, now=1006)
+
+ def test_axes_preserved_and_mismatches_rejected(self):
+  from onewin_automation.common import verify_executor_quote
+  q={'source':'1win','source_event_key':'40021999','source_market':'T< 60.5','odds':1.87,'source_ts':1000,
+     'axes':{'period':'full_time','scope':'REG','unit':'goals','market':'total','line':60.5,'side':'under'}}
+  r={**q,'source':'BIA','source_event_key':'r','odds':1.80}
+  task=task_from_value(
+   {'event_id':'canonical','isLive':True,'first':{'bookmaker':'BIA','matchId':'r'},'second':{'bookmaker':'1win','matchId':'40021999'}},
+   {'outcome':'T< 60.5','score1':{'value':1.80},'score2':{'value':1.87},'reference_quote':r,'donor_quote':q,'margin_quotes':[r]},
+   stake=1.0,idempotency_key='axes-test-key',now=1001
+  )
+  self.assertEqual(task['axes']['period'], 'full_time')
+  self.assertEqual(task['axes']['unit'], 'goals')
+  self.assertEqual(task['axes']['side'], 'under')
+
+  valid_exec = {
+   'identity_verified_by': 'onewin-executor', 'verified': True,
+   'provider_id_namespace': 'top-parser:1win', 'provider_event_key': '40021999',
+   'native_event_id': '40021999', 'native_market_id': '6271',
+   'native_selection_id': '10:193671744120169820:0', 'source_market': 'T< 60.5',
+   'odds': 1.87, 'source_ts': 1001, 'max_stake': 8.45, 'currency': 'USDT',
+   'commission': 0.0,
+   'axes': {'period':'full_time','scope':'REG','unit':'goals','market':'total','line':60.5,'side':'under'}
+  }
+  self.assertTrue(verify_executor_quote(task, valid_exec, now=1002)['dry_run'])
+
+  # Different period rejected
+  with self.assertRaises(CommonTaskError):
+   verify_executor_quote(task, {**valid_exec, 'axes': {**valid_exec['axes'], 'period': '1st_half'}}, now=1002)
+
+  # Different side (over instead of under) rejected
+  with self.assertRaises(CommonTaskError):
+   verify_executor_quote(task, {**valid_exec, 'axes': {**valid_exec['axes'], 'side': 'over'}}, now=1002)
+
+  # Different unit rejected
+  with self.assertRaises(CommonTaskError):
+   verify_executor_quote(task, {**valid_exec, 'axes': {**valid_exec['axes'], 'unit': 'points'}}, now=1002)

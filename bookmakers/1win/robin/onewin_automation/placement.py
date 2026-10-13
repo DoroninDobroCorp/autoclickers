@@ -52,6 +52,13 @@ class PlacementGate:
             raise LivePlacementDisabled("1win live placement is disabled")
         if self.attempt_store is None:
             raise LivePlacementDisabled("1win live placement requires a durable shared attempt store")
+        stake = payload.get("stake")
+        try:
+            stake_val = float(stake)
+        except (TypeError, ValueError):
+            stake_val = 0.0
+        if stake_val > 1.0 or stake_val <= 0:
+            raise BasketValidationError("stake exceeds 1 USDT single test budget")
         key = str(payload.get("idempotency_key") or "").strip()
         if not key:
             raise BasketValidationError("idempotency_key is required for live placement")

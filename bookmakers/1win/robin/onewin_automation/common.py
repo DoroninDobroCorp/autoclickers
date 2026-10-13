@@ -81,6 +81,7 @@ def task_from_value(pair:dict[str,Any], outcome:dict[str,Any], *, stake:float, i
             'outcome_key':outcome['outcome'],'reference_source':'BIA','reference_role':'reference',
             'pinnacle_attributed':False,'donor_source':'1win','quote':dict(donor),
             'reference_quote':dict(ref),'margin_quotes':list(margins),'stake':stake,
+            'axes':dict(donor.get('axes') or outcome.get('axes') or {}),
             'valuation_basis':{'roi_basis':roi_basis,'margin_basis':margin_basis},
             'expires_at':min(clocks)+ttl,'execution_ready':False,'execution_blockers':['executor_identity_and_conditions_unverified']}
 
@@ -133,6 +134,10 @@ def verify_executor_quote(task,quote,*,now):
     if (quote.get('provider_id_namespace')!='top-parser:1win' or quote.get('provider_event_key')!=str(expected['source_event_key'])
             or quote.get('source_market')!=expected['source_market'] or quote.get('odds')!=expected['odds']):
         raise CommonTaskError('executor quote differs from signal')
+    expected_axes = expected.get('axes') or task.get('axes') or {}
+    quote_axes = quote.get('axes') or {}
+    if expected_axes and quote_axes != expected_axes:
+        raise CommonTaskError('executor quote axes mismatch')
     if confirmed(quote)>now or now-confirmed(quote)>=(5 if task['is_live'] else 60):raise CommonTaskError('executor quote expired')
     commission=quote.get('commission');limit=quote.get('max_stake')
     if isinstance(commission,bool) or not isinstance(commission,(int,float)) or not math.isfinite(commission) or not 0<=commission<1:
@@ -175,3 +180,170 @@ async def review_with_jev(task, client, question_factory, *, clock):
     except Exception as exc:
         return {'schema_version':'automation-review.v1','status':'INVESTIGATE','execution_ready':False,
                 'reason':'review_unavailable_or_invalid','error_type':type(exc).__name__}
+
+class DurableAttemptStore:
+    """Atomic, durable attempt store implementing the placement attempt protocol."""
+
+    def __init__(self, path: str | Path):
+        self._lock = threading.RLock()
+        target = Path(path)
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(target, os.O_CREAT | os.O_WRONLY, 0o600)
+        os.close(fd)
+        target.chmod(0o600)
+        self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
+        self._db.execute("PRAGMA busy_timeout=5000")
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS attempts ("
+            "  key TEXT PRIMARY KEY,"
+            "  status TEXT NOT NULL,"
+            "  stake REAL NOT NULL,"
+            "  currency TEXT NOT NULL,"
+            "  payload TEXT NOT NULL,"
+            "  receipt TEXT,"
+            "  error TEXT,"
+            "  created_at REAL NOT NULL,"
+            "  updated_at REAL NOT NULL"
+            ")"
+        )
+
+    def close(self):
+        self._db.close()
+
+    def claim(self, idempotency_key: str, *, stake: float = 1.0, currency: str = "USDT", payload: dict[str, Any] | None = None, now: float | None = None) -> bool:
+        """Atomically claim an idempotency key. Returns False if already claimed."""
+        key = str(idempotency_key or "").strip()
+        if not key or len(key) > 128:
+            raise CommonTaskError("valid idempotency_key required")
+        if stake > 1.0 or stake <= 0:
+            raise CommonTaskError("stake exceeds single test budget of 1.0 USDT")
+        ts = now if now is not None else datetime.now(timezone.utc).timestamp()
+        raw_payload = json.dumps(payload or {}, sort_keys=True, allow_nan=False, separators=(",", ":"))
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._db.execute("SELECT status FROM attempts WHERE key = ?", (key,)).fetchone()
+                if row is not None:
+                    self._db.execute("ROLLBACK")
+                    return False
+                self._db.execute(
+                    "INSERT INTO attempts VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
+                    (key, "CLAIMED", float(stake), currency, raw_payload, ts, ts),
+                )
+                self._db.execute("COMMIT")
+                return True
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def record_status(self, key: str, status: str, *, receipt: dict[str, Any] | None = None, error: str | None = None, now: float | None = None) -> str:
+        terminal_statuses = {"ACCEPTED", "REJECTED", "INDETERMINATE", "WITHDRAWN"}
+        valid_statuses = {"CLAIMED", "PRE_CHECK_PASSED", "SUBMITTING", *terminal_statuses}
+        if status not in valid_statuses:
+            raise CommonTaskError(f"invalid attempt status: {status}")
+        ts = now if now is not None else datetime.now(timezone.utc).timestamp()
+        raw_receipt = json.dumps(receipt, sort_keys=True, allow_nan=False) if receipt else None
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._db.execute("SELECT status FROM attempts WHERE key = ?", (key,)).fetchone()
+                if row is None:
+                    raise CommonTaskError("unknown attempt key")
+                current = row[0]
+                if current in terminal_statuses and current != status:
+                    raise CommonTaskError(f"terminal attempt ({current}) cannot transition to {status}")
+                self._db.execute(
+                    "UPDATE attempts SET status = ?, receipt = COALESCE(?, receipt), error = COALESCE(?, error), updated_at = ? WHERE key = ?",
+                    (status, raw_receipt, error, ts, key),
+                )
+                self._db.execute("COMMIT")
+                return status
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def get_attempt(self, key: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT key, status, stake, currency, payload, receipt, error, created_at, updated_at FROM attempts WHERE key = ?",
+                (key,),
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                "key": row[0],
+                "status": row[1],
+                "stake": row[2],
+                "currency": row[3],
+                "payload": json.loads(row[4]),
+                "receipt": json.loads(row[5]) if row[5] else None,
+                "error": row[6],
+                "created_at": row[7],
+                "updated_at": row[8],
+            }
+
+
+def verify_live_execution_conditions(
+    task: dict[str, Any],
+    quote: dict[str, Any],
+    account_state: dict[str, Any],
+    *,
+    now: float,
+) -> dict[str, Any]:
+    """Strict pre-execution conditions verifier for the single 1 USDT diagnostic test.
+
+    Fails closed if the quote is stale, prices drifted, account is not authenticated,
+    currency is not USDT, or stake exceeds the 1 USDT budget.
+    """
+    if now >= task["expires_at"]:
+        raise CommonTaskError("task expired")
+    if not account_state.get("logged_in"):
+        raise CommonTaskError("account is not logged in")
+    if account_state.get("currency") != "USDT":
+        raise CommonTaskError("account currency must be USDT")
+
+    stake = task.get("stake")
+    if isinstance(stake, bool) or not isinstance(stake, (int, float)) or not math.isfinite(stake):
+        raise CommonTaskError("invalid stake")
+    if stake > 1.0 or stake <= 0:
+        raise CommonTaskError("stake exceeds 1.0 USDT diagnostic test budget")
+
+    avail_balance = account_state.get("available_balance")
+    if isinstance(avail_balance, (int, float)) and avail_balance < stake:
+        raise CommonTaskError("insufficient wallet balance")
+
+    if quote.get("identity_verified_by") != "onewin-executor" or quote.get("verified") is not True:
+        raise CommonTaskError("independent executor verification required")
+
+    expected = task["quote"]
+    if (
+        quote.get("provider_id_namespace") != "top-parser:1win"
+        or quote.get("provider_event_key") != str(expected["source_event_key"])
+        or quote.get("source_market") != expected["source_market"]
+        or quote.get("odds") != expected["odds"]
+    ):
+        raise CommonTaskError("executor quote differs from signal")
+    expected_axes = expected.get("axes") or task.get("axes") or {}
+    quote_axes = quote.get("axes") or {}
+    if expected_axes and quote_axes != expected_axes:
+        raise CommonTaskError("executor quote axes mismatch")
+
+    if confirmed(quote) > now or now - confirmed(quote) >= (5 if task["is_live"] else 60):
+        raise CommonTaskError("executor quote expired")
+
+    limit = quote.get("max_stake")
+    if isinstance(limit, (int, float)) and limit < stake:
+        raise CommonTaskError("market capacity below stake")
+
+    return {
+        "schema_version": "automation-live-order.v1",
+        "live": True,
+        "idempotency_key": task["idempotency_key"],
+        "event_id": quote.get("native_event_id"),
+        "market_id": quote.get("native_market_id"),
+        "selection_id": quote.get("native_selection_id"),
+        "odds": quote["odds"],
+        "stake": stake,
+        "currency": "USDT",
+        "expires_at": task["expires_at"],
+    }

@@ -16,7 +16,7 @@ async function getAuthToken() {
     const resp = await fetch('http://127.0.0.1:8899/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'owner', password: 'owner123' })
+      body: JSON.stringify({ username: 'owner', password: process.env.ROBINARB_AUTH_PASSWORD || '' })
     });
     const data = await resp.json();
     if (data.token) {
@@ -26,7 +26,7 @@ async function getAuthToken() {
   } catch (e) {
     console.warn('Auto-login failed:', e);
   }
-  return 'Pgt1xRxPZtp7XQMDRsXWFKEoSB52Ak_k';
+  return process.env.ROBINARB_AUTH_TOKEN || '';
 }
 
 export function parseAmount(text) {
