@@ -513,6 +513,12 @@ export class TransportGuard {
     const context = this.page.context();
     if (typeof context.serviceWorkers === 'function' && context.serviceWorkers().length > 0) checks.no_foreign_worker = false;
     if (typeof this.page.workers === 'function' && this.page.workers().length > 0) checks.no_foreign_worker = false;
+    // a worker that appeared at any time (even one that is gone now) means the removal failed once, and a
+    // worker's sockets are the one transport the routes cannot see
+    if (this.stats.workers_seen > 0 || this.stats.service_workers_seen > 0
+      || this.violations.some((v) => v.kind === 'route_handler_error' || v.kind === 'redirect_guard_error')) {
+      checks.no_foreign_worker = false;
+    }
     const ok = Object.values(checks).every((value) => value === true);
     return { ok, checks };
   }

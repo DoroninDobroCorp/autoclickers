@@ -153,6 +153,18 @@ for (const kind of ['dry', 'live']) {
     });
   });
 
+  test(`${kind}: a worker that was ever seen, or a guard error, makes the coverage proof fail for good`, async (t) => {
+    await withCart(t, kind, async ({ cart }) => {
+      assert.equal((await cart._guard.verifyCoverage()).ok, true);
+      cart._guard.stats.workers_seen = 1;
+      assert.equal((await cart._guard.verifyCoverage()).checks.no_foreign_worker, false);
+      cart._guard.stats.workers_seen = 0;
+      cart._guard._violation('route_handler_error', 'boom');
+      const verdict = await cart._guard.verifyCoverage();
+      assert.equal(verdict.ok, false);
+    });
+  });
+
   test(`${kind}: a document created before the guard is NOT covered and the canary says so`, async (t) => {
     await withCart(t, kind, async ({ cart }) => {
       const verdict = await cart._guard.verifyCoverage();
