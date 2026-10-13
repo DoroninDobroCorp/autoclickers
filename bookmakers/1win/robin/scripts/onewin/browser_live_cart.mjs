@@ -1,5 +1,6 @@
 // Explicit live cart executor with durable disk attempt store, strict condition checks, and receipt verification.
 // OneWinDryRunCart in browser_cart.mjs remains strictly read-only.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseAmount, eventIdFromUrl } from './browser_cart.mjs';
@@ -19,6 +20,19 @@ const KNOWN_REJECTIONS = new Set([
 
 function isPlainObject(val) {
   return Boolean(val) && typeof val === 'object' && !Array.isArray(val);
+}
+
+function fsyncDir(dirPath) {
+  let fd = null;
+  try {
+    fd = fs.openSync(dirPath, fs.constants.O_RDONLY);
+    fs.fsyncSync(fd);
+  } catch {}
+  finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
 }
 
 export class InMemoryAttemptStore {
@@ -53,6 +67,7 @@ export class DurableAttemptStore {
     }
     this.filePath = path.resolve(filePath);
     this.lockPath = `${this.filePath}.lock`;
+    this.reapPath = `${this.filePath}.reap`;
     this.maxStake = maxStake !== null && maxStake !== undefined ? Number(maxStake) : null;
     if (this.maxStake !== null && (!Number.isFinite(this.maxStake) || this.maxStake <= 0)) {
       throw new Error('INVALID_MAX_STAKE');
@@ -63,61 +78,170 @@ export class DurableAttemptStore {
   }
 
   _acquireLock(timeoutMs = 5000) {
+    const token = crypto.randomUUID();
     const deadline = Date.now() + timeoutMs;
-    while (true) {
-      try {
-        const fd = fs.openSync(this.lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
-        fs.writeFileSync(fd, `${process.pid}:${Date.now()}\n`, 'utf8');
-        fs.fsyncSync(fd);
-        return fd;
-      } catch (err) {
-        if (err.code !== 'EEXIST') throw err;
+    const tempLockPath = `${this.lockPath}.${process.pid}.${token}`;
+    const payload = JSON.stringify({ pid: process.pid, token, created_at: Date.now() }) + '\n';
+
+    // Write temp lock file first so the lock file is born already populated
+    const fdTmp = fs.openSync(tempLockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+    try {
+      fs.writeFileSync(fdTmp, payload, 'utf8');
+      fs.fsyncSync(fdTmp);
+    } finally {
+      fs.closeSync(fdTmp);
+    }
+
+    try {
+      while (true) {
         try {
+          fs.linkSync(tempLockPath, this.lockPath);
+          fsyncDir(path.dirname(this.lockPath));
           const stat = fs.statSync(this.lockPath);
-          if (Date.now() - stat.mtimeMs > 15000) {
-            fs.unlinkSync(this.lockPath);
+          return { token, ino: stat.ino };
+        } catch (err) {
+          if (err.code !== 'EEXIST') throw err;
+
+          // Inspect existing lock owner
+          let isAlive = false;
+          let ownerPid = null;
+          let lockData = null;
+          let stat = null;
+          try {
+            stat = fs.statSync(this.lockPath);
+            const content = fs.readFileSync(this.lockPath, 'utf8');
+            lockData = JSON.parse(content);
+            ownerPid = Number(lockData.pid);
+            if (Number.isInteger(ownerPid) && ownerPid > 0) {
+              if (ownerPid === process.pid) {
+                // Lock held by our own thread/scope
+                isAlive = true;
+              } else {
+                try {
+                  process.kill(ownerPid, 0);
+                  isAlive = true;
+                } catch (killErr) {
+                  isAlive = killErr.code === 'EPERM';
+                }
+              }
+            }
+          } catch {}
+
+          if (isAlive) {
+            // Live writer is still running. NEVER steal or delete a live owner's lock regardless of age!
+            if (Date.now() >= deadline) {
+              throw new Error('DURABLE_STORE_LOCK_TIMEOUT');
+            }
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
             continue;
           }
-        } catch {}
-        if (Date.now() >= deadline) {
-          throw new Error('DURABLE_STORE_LOCK_TIMEOUT');
+
+          // Owner process is dead (ESRCH): safely reap lock using serialized reap guard
+          let reapFd = null;
+          try {
+            reapFd = fs.openSync(this.reapPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+            try {
+              const currentStat = fs.statSync(this.lockPath);
+              if (stat && currentStat.ino === stat.ino) {
+                fs.unlinkSync(this.lockPath);
+                fsyncDir(path.dirname(this.lockPath));
+              }
+            } catch {}
+          } catch {
+            // Another process is already reaping or competing; wait and retry
+          } finally {
+            if (reapFd !== null) {
+              try { fs.closeSync(reapFd); } catch {}
+              try { fs.unlinkSync(this.reapPath); } catch {}
+            }
+          }
+
+          if (Date.now() >= deadline) {
+            throw new Error('DURABLE_STORE_LOCK_TIMEOUT');
+          }
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
         }
-        // Busy wait 5ms using Atomics.wait on a shared buffer
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
       }
+    } finally {
+      try { fs.unlinkSync(tempLockPath); } catch {}
     }
   }
 
-  _releaseLock(fd) {
-    try { fs.closeSync(fd); } catch {}
-    try { fs.unlinkSync(this.lockPath); } catch {}
+  _releaseLock(lockHandle) {
+    if (!lockHandle || !lockHandle.token) return;
+    try {
+      const stat = fs.statSync(this.lockPath);
+      if (stat.ino !== lockHandle.ino) {
+        throw new Error('LOCK_OWNERSHIP_LOST');
+      }
+      const raw = fs.readFileSync(this.lockPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (parsed.token !== lockHandle.token || parsed.pid !== process.pid) {
+        throw new Error('LOCK_OWNERSHIP_LOST');
+      }
+      fs.unlinkSync(this.lockPath);
+      fsyncDir(path.dirname(this.lockPath));
+    } catch (err) {
+      if (err.message === 'LOCK_OWNERSHIP_LOST') throw err;
+      // If file was already gone
+    }
   }
 
   _withLock(fn) {
-    const fd = this._acquireLock();
+    const handle = this._acquireLock();
     try {
       return fn();
     } finally {
-      this._releaseLock(fd);
+      this._releaseLock(handle);
     }
   }
 
   _readDataUnlocked() {
     if (!fs.existsSync(this.filePath)) {
-      return { version: 1, attempts: {} };
+      return new Map();
     }
     const raw = fs.readFileSync(this.filePath, 'utf8');
-    if (!raw.trim()) return { version: 1, attempts: {} };
-    const parsed = JSON.parse(raw);
-    if (!isPlainObject(parsed) || !isPlainObject(parsed.attempts)) {
-      throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE');
+    if (!raw.trim()) {
+      throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:EMPTY_EXISTING_FILE');
     }
-    return parsed;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_JSON');
+    }
+    if (!isPlainObject(parsed) || parsed.version !== 1) {
+      throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_SCHEMA');
+    }
+
+    const attemptsMap = new Map();
+    if (Array.isArray(parsed.entries)) {
+      for (const item of parsed.entries) {
+        if (Array.isArray(item) && item.length === 2 && typeof item[0] === 'string' && isPlainObject(item[1])) {
+          attemptsMap.set(item[0], item[1]);
+        }
+      }
+    } else if (isPlainObject(parsed.attempts)) {
+      for (const [k, v] of Object.entries(parsed.attempts)) {
+        if (isPlainObject(v)) {
+          attemptsMap.set(k, v);
+        }
+      }
+    } else {
+      throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_SCHEMA');
+    }
+    return attemptsMap;
   }
 
-  _writeDataUnlocked(data) {
+  _writeDataUnlocked(attemptsMap) {
+    const dir = path.dirname(this.filePath);
     const tmpPath = `${this.filePath}.tmp.${process.pid}.${Date.now()}`;
-    const raw = JSON.stringify(data, null, 2) + '\n';
+    const entries = Array.from(attemptsMap.entries());
+    const payloadObj = {
+      version: 1,
+      entries,
+    };
+    const raw = JSON.stringify(payloadObj, null, 2) + '\n';
     const fd = fs.openSync(tmpPath, fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_WRONLY, 0o600);
     try {
       fs.writeFileSync(fd, raw, 'utf8');
@@ -128,17 +252,18 @@ export class DurableAttemptStore {
     fs.chmodSync(tmpPath, 0o600);
     fs.renameSync(tmpPath, this.filePath);
     fs.chmodSync(this.filePath, 0o600);
+    fsyncDir(dir);
   }
 
   _initOnDisk() {
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     this._withLock(() => {
-      const data = this._readDataUnlocked();
-      this._writeDataUnlocked(data);
-      const readback = this._readDataUnlocked();
-      if (!isPlainObject(readback.attempts)) {
-        throw new Error('DURABLE_STORE_READBACK_FAILED');
+      if (!fs.existsSync(this.filePath)) {
+        this._writeDataUnlocked(new Map());
+      } else {
+        // Must validate existing store without overwriting or deleting
+        this._readDataUnlocked();
       }
     });
   }
@@ -180,12 +305,12 @@ export class DurableAttemptStore {
     const expectedOdds = typeof rawOdds === 'number' && Number.isFinite(rawOdds) ? rawOdds : null;
 
     return this._withLock(() => {
-      const data = this._readDataUnlocked();
-      if (Object.prototype.hasOwnProperty.call(data.attempts, cleanKey)) {
+      const attemptsMap = this._readDataUnlocked();
+      if (attemptsMap.has(cleanKey)) {
         return false;
       }
       const now = Date.now();
-      data.attempts[cleanKey] = {
+      attemptsMap.set(cleanKey, {
         key: cleanKey,
         status: 'CLAIMED',
         stake,
@@ -200,8 +325,8 @@ export class DurableAttemptStore {
         condition_mismatches: [],
         created_at: now,
         updated_at: now,
-      };
-      this._writeDataUnlocked(data);
+      });
+      this._writeDataUnlocked(attemptsMap);
       return true;
     });
   }
@@ -215,8 +340,8 @@ export class DurableAttemptStore {
       throw new Error(`INVALID_ATTEMPT_STATUS:${status}`);
     }
     return this._withLock(() => {
-      const data = this._readDataUnlocked();
-      const entry = data.attempts[cleanKey];
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
       if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
       if (TERMINAL_STATUSES.has(entry.status) && entry.status !== status) {
         throw new Error('TERMINAL_ATTEMPT_IMMUTABLE');
@@ -232,7 +357,7 @@ export class DurableAttemptStore {
         entry.condition_mismatches = [...condition_mismatches];
       }
       entry.updated_at = Date.now();
-      this._writeDataUnlocked(data);
+      this._writeDataUnlocked(attemptsMap);
       return JSON.parse(JSON.stringify(entry));
     });
   }
@@ -241,8 +366,8 @@ export class DurableAttemptStore {
     if (typeof key !== 'string' || !key.trim()) return null;
     const cleanKey = key.trim();
     return this._withLock(() => {
-      const data = this._readDataUnlocked();
-      const entry = data.attempts[cleanKey];
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
       return entry ? JSON.parse(JSON.stringify(entry)) : null;
     });
   }
@@ -274,8 +399,62 @@ export class OneWinLiveCart {
     this.busy = false;
     this.guarded = false;
     this.submitArmed = false;
+    this.armedExpectation = null;
     this.submitSentCount = 0;
     this.blocked = [];
+    this.blocked_reasons = [];
+  }
+
+  _validateMakeBetRequestBody(body, expected) {
+    if (!isPlainObject(body)) {
+      return { ok: false, reason: 'body_not_an_object' };
+    }
+    if (body.currencyCode !== expected.currency) {
+      return { ok: false, reason: `currency_code_mismatch:${body.currencyCode}!=${expected.currency}` };
+    }
+    if (typeof body.amount !== 'number' || Math.abs(body.amount - expected.stake) > 1e-9) {
+      return { ok: false, reason: `amount_mismatch:${body.amount}!=${expected.stake}` };
+    }
+    if (body.freebetId !== undefined && body.freebetId !== null) {
+      return { ok: false, reason: 'freebet_substitution_forbidden' };
+    }
+    if (body.bonusPercent || (Array.isArray(body.bonuses) && body.bonuses.length > 0)) {
+      return { ok: false, reason: 'bonus_substitution_forbidden' };
+    }
+    if (body.wallet) {
+      if (body.wallet.type !== 'real' || body.wallet.bonusId) {
+        return { ok: false, reason: 'non_real_wallet_forbidden' };
+      }
+    }
+    if (!isPlainObject(body.coupon)) {
+      return { ok: false, reason: 'coupon_not_an_object' };
+    }
+    if (typeof body.coupon.amount !== 'number' || Math.abs(body.coupon.amount - expected.stake) > 1e-9) {
+      return { ok: false, reason: `coupon_amount_mismatch:${body.coupon.amount}!=${expected.stake}` };
+    }
+    if (body.coupon.freebetId !== undefined && body.coupon.freebetId !== null) {
+      return { ok: false, reason: 'coupon_freebet_forbidden' };
+    }
+    if (!Array.isArray(body.coupon.selections) || body.coupon.selections.length !== 1) {
+      return { ok: false, reason: `selections_count_must_be_one:${body.coupon?.selections?.length}` };
+    }
+    const sel = body.coupon.selections[0];
+    if (!isPlainObject(sel)) {
+      return { ok: false, reason: 'selection_not_an_object' };
+    }
+    if (String(sel.oddId || '') !== expected.selectionId) {
+      return { ok: false, reason: `odd_id_mismatch:${sel.oddId}!=${expected.selectionId}` };
+    }
+    if (String(sel.matchId || '') !== expected.eventId) {
+      return { ok: false, reason: `match_id_mismatch:${sel.matchId}!=${expected.eventId}` };
+    }
+    if (typeof sel.cf !== 'number' || Math.abs(sel.cf - expected.price) > 1e-9) {
+      return { ok: false, reason: `price_mismatch:${sel.cf}!=${expected.price}` };
+    }
+    if (sel.marketId !== undefined && sel.marketId !== null && String(sel.marketId) !== expected.marketId) {
+      return { ok: false, reason: `market_id_mismatch:${sel.marketId}!=${expected.marketId}` };
+    }
+    return { ok: true };
   }
 
   async installGuard() {
@@ -284,20 +463,45 @@ export class OneWinLiveCart {
     await this.page.route('**/*', async route => {
       const request = route.request();
       const pathName = new URL(request.url()).pathname;
-      const isForbiddenMutation = /\/bets\/(?:refund|cashout|sell)(?:\/|$)/i.test(pathName);
-      const isMakeBet = /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName)
-        || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager)/i.test(pathName);
+      const isForbiddenMutation = /\/bets\/(?:refund|cashout|sell)(?:\/|$)/i.test(pathName)
+        || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager|express-ordinary)/i.test(pathName);
       if (request.method() === 'POST' && isForbiddenMutation) {
         this.blocked.push(pathName);
+        this.blocked_reasons.push('forbidden_mutation_path');
         return route.abort();
       }
-      if (request.method() === 'POST' && isMakeBet) {
-        if (!this.submitArmed || this.submitSentCount >= 1) {
+
+      if (request.method() === 'POST' && /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName)) {
+        const expected = this.armedExpectation;
+        this.submitArmed = false;
+        this.armedExpectation = null;
+
+        if (!expected || this.submitSentCount >= 1) {
           this.blocked.push(pathName);
+          this.blocked_reasons.push('unarmed_or_duplicate_make_bet_post');
           return route.abort();
         }
-        // Single-shot consumption: disarm immediately before forwarding
-        this.submitArmed = false;
+
+        let postBody = null;
+        try {
+          if (typeof request.postDataJSON === 'function') {
+            postBody = request.postDataJSON();
+          } else {
+            postBody = JSON.parse(request.postData() || '{}');
+          }
+        } catch {
+          this.blocked.push(pathName);
+          this.blocked_reasons.push('invalid_json_in_post_body');
+          return route.abort();
+        }
+
+        const validation = this._validateMakeBetRequestBody(postBody, expected);
+        if (!validation.ok) {
+          this.blocked.push(pathName);
+          this.blocked_reasons.push(validation.reason);
+          return route.abort();
+        }
+
         this.submitSentCount += 1;
         return route.fallback();
       }
@@ -326,6 +530,10 @@ export class OneWinLiveCart {
     if (plan.execution_ready !== true || (Array.isArray(plan.execution_blockers) && plan.execution_blockers.length > 0)) {
       throw new Error('EXECUTION_NOT_READY');
     }
+    if (plan.live_submit_contract_verified !== true && plan.account_conditions?.live_submit_contract_verified !== true) {
+      throw new Error('LIVE_SUBMIT_CONTRACT_UNVERIFIED');
+    }
+
     const idempotencyKey = typeof plan.idempotency_key === 'string' ? plan.idempotency_key.trim() : '';
     if (!idempotencyKey || idempotencyKey.length > 128) {
       throw new Error('IDEMPOTENCY_KEY_REQUIRED');
@@ -358,7 +566,6 @@ export class OneWinLiveCart {
       throw new Error('STAKE_BUDGET_VIOLATION');
     }
 
-    // Validate expected_axes and selection.axes
     const expectedAxes = plan.expected_axes;
     const selectionAxes = plan.selection.axes;
     if (!isPlainObject(expectedAxes) || !isPlainObject(selectionAxes)) {
@@ -388,7 +595,6 @@ export class OneWinLiveCart {
       }
     }
 
-    // Validate account and execution conditions
     const acct = plan.account_conditions;
     if (!isPlainObject(acct)) {
       throw new Error('ACCOUNT_CONDITIONS_REQUIRED');
@@ -412,7 +618,6 @@ export class OneWinLiveCart {
       throw new Error('INSUFFICIENT_CAPACITY');
     }
 
-    // Validate selection identity fields
     const selection = plan.selection;
     if (
       typeof selection.event_id !== 'string' || !/^\d+$/.test(selection.event_id) ||
@@ -560,18 +765,31 @@ export class OneWinLiveCart {
           res => /\/bets\/make-bet-v2(?:\/|$)/i.test(new URL(res.url()).pathname) && res.request().method() === 'POST',
           { timeout: 15000 }
         );
+
+        // Bind exact expected body parameters to route handler before clicking submit
+        this.armedExpectation = {
+          eventId: selection.event_id,
+          marketId: selection.market_id,
+          selectionId: selection.selection_id,
+          stake,
+          currency: 'USDT',
+          price: selection.price,
+        };
         this.submitArmed = true;
+
         let response;
         try {
           await submitBtn.click({ timeout: 5000 });
           response = await responsePromise;
         } catch (sendErr) {
           this.submitArmed = false;
+          this.armedExpectation = null;
           result.status = 'INDETERMINATE';
           await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: String(sendErr.message || sendErr) });
           throw sendErr;
         }
         this.submitArmed = false;
+        this.armedExpectation = null;
 
         const body = await response.json().catch(() => null);
         if (!isPlainObject(body)) {
@@ -606,7 +824,6 @@ export class OneWinLiveCart {
           throw new Error('PLACEMENT_INDETERMINATE:MISSING_BET_ID');
         }
 
-        // Bet was accepted by bookmaker: validate fields and persist receipt immediately
         const rawCf = success.cf;
         const acceptedCf = typeof rawCf !== 'boolean' && rawCf !== null && rawCf !== undefined ? Number(rawCf) : Number.NaN;
         const rawAmount = success.amount;
@@ -665,7 +882,6 @@ export class OneWinLiveCart {
           error: result.error || null,
         });
 
-        // Post-bet screenshot failure must never invalidate or overwrite a confirmed ACCEPTED receipt
         if (screenshotPost) {
           try {
             await this.page.screenshot({ path: screenshotPost });
@@ -676,6 +892,7 @@ export class OneWinLiveCart {
       });
     } catch (error) {
       this.submitArmed = false;
+      this.armedExpectation = null;
       if (result.status !== 'ACCEPTED' && result.status !== 'REJECTED' && result.status !== 'INDETERMINATE') {
         if (this.submitSentCount > 0) {
           result.status = 'INDETERMINATE';
@@ -690,6 +907,7 @@ export class OneWinLiveCart {
       }
     } finally {
       this.submitArmed = false;
+      this.armedExpectation = null;
       const terminalReached = result.status === 'ACCEPTED' || result.status === 'REJECTED' || result.status === 'INDETERMINATE';
       const failedStage = result.stage;
       try {
@@ -708,6 +926,7 @@ export class OneWinLiveCart {
       result.elapsed_ms = Math.round(performance.now() - started);
       result.submit_sent_count = this.submitSentCount;
       result.blocked_submit_requests = this.blocked.length;
+      result.blocked_reasons = [...this.blocked_reasons];
       this.busy = false;
     }
     return result;

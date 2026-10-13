@@ -412,6 +412,8 @@ def assess_live_readiness(
     if not isinstance(quote, dict) or quote.get("identity_verified_by") != "onewin-executor" or quote.get("verified") is not True:
         blockers.append("executor_identity_unverified")
     else:
+        if quote.get("live_submit_contract_verified") is not True:
+            blockers.append("unverified_live_submit_wire_contract")
         commission = quote.get("commission")
         if isinstance(commission, bool) or not isinstance(commission, (int, float)) or not math.isfinite(commission) or not 0 <= commission < 1:
             blockers.append("unverified_commission")

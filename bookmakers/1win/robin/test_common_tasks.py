@@ -217,7 +217,6 @@ class LiveExecutionGuardTests(unittest.TestCase):
 
  def test_assess_live_readiness_keeps_readiness_false_with_blockers(self):
   task = self.task(stake=1.0)
-  # When quote has no verified commission (None) and market limit is wallet-capped
   raw_quote = {
    'source': '1win', 'odds': 1.87,
    'commission': None, 'max_stake': None,
@@ -227,6 +226,19 @@ class LiveExecutionGuardTests(unittest.TestCase):
   readiness = assess_live_readiness(task, raw_quote, acct, now=1002)
   self.assertFalse(readiness['execution_ready'])
   self.assertIn('executor_identity_unverified', readiness['execution_blockers'])
+
+  # Even when executor identity is verified, unverified commission and unverified submit wire contract block readiness
+  exec_quote = {
+   'identity_verified_by': 'onewin-executor',
+   'verified': True,
+   'commission': None,
+   'max_stake': 8.45,
+   'axes': task['axes'],
+  }
+  readiness2 = assess_live_readiness(task, exec_quote, {**acct, 'account_identity_verified': True}, now=1002)
+  self.assertFalse(readiness2['execution_ready'])
+  self.assertIn('unverified_commission', readiness2['execution_blockers'])
+  self.assertIn('unverified_live_submit_wire_contract', readiness2['execution_blockers'])
 
 
 class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
