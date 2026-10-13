@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 import inspect
+import math
 from typing import Any, Protocol
 
 from .basket import BasketValidationError
@@ -53,13 +54,16 @@ class PlacementGate:
             raise LivePlacementDisabled("1win live placement is disabled")
         if self.attempt_store is None:
             raise LivePlacementDisabled("1win live placement requires a durable shared attempt store")
-        stake = payload.get("stake")
-        try:
-            stake_val = float(stake)
-        except (TypeError, ValueError):
-            stake_val = 0.0
-        if stake_val > 1.0 or stake_val <= 0:
-            raise BasketValidationError("stake exceeds 1 USDT single test budget")
+        if "stake" in payload:
+            stake = payload.get("stake")
+            if isinstance(stake, bool):
+                raise BasketValidationError("stake exceeds 1 USDT single test budget")
+            try:
+                stake_val = float(stake)
+            except (TypeError, ValueError) as exc:
+                raise BasketValidationError("stake exceeds 1 USDT single test budget") from exc
+            if not math.isfinite(stake_val) or stake_val <= 0 or stake_val > min(self.config.max_stake, 1.0):
+                raise BasketValidationError("stake exceeds 1 USDT single test budget")
         key = str(payload.get("idempotency_key") or "").strip()
         if not key:
             raise BasketValidationError("idempotency_key is required for live placement")
