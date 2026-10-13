@@ -139,11 +139,14 @@ def payout_rule(*contexts: Any) -> dict[str, Any]:
     }
 
 
-def _normalise_platform(axes: dict[str, Any]) -> dict[str, Any]:
-    values: dict[str, str] = {}
+def _normalise_platform(axes: dict[str, Any], require_registry: bool = True) -> dict[str, Any]:
+    values: dict[str, str | None] = {}
     for key in ("sport", "market_family", "period", "target", "unit", "side", "sportref_market_type"):
         value = _text(axes.get(key))
         if value is None:
+            if key == "sportref_market_type" and not require_registry:
+                values[key] = None  # an executor derives facts, it does not know registry bindings
+                continue
             raise AxesContractError(f"axes_incomplete:{key}", f"incomplete axes: missing {key}")
         values[key] = value
     family = values["market_family"].lower()
@@ -206,17 +209,19 @@ def _normalise_legacy(axes: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def normalise_axes(axes: Any, *, contexts: tuple[Any, ...] = ()) -> dict[str, Any]:
+def normalise_axes(axes: Any, *, contexts: tuple[Any, ...] = (), require_registry: bool = True) -> dict[str, Any]:
     """Return ``{adapter_version, schema, facts, original}`` or raise.
 
     ``contexts`` are quote dictionaries that may carry ``result_variant``,
-    ``draw_payout`` and ``payout_status``.
+    ``draw_payout`` and ``payout_status``.  ``require_registry=False`` is for
+    executor-side facts, which cannot know Sportref registry bindings; the task
+    side always requires the registry id.
     """
     if not isinstance(axes, dict) or not axes:
         raise AxesContractError("axes_missing", "verified axes required")
     original = copy.deepcopy(axes)
     if "market_family" in axes or "sportref_market_type" in axes:
-        schema, facts = PLATFORM_SCHEMA, _normalise_platform(axes)
+        schema, facts = PLATFORM_SCHEMA, _normalise_platform(axes, require_registry)
     elif "market" in axes or "scope" in axes:
         schema, facts = LEGACY_SCHEMA, _normalise_legacy(axes)
     else:

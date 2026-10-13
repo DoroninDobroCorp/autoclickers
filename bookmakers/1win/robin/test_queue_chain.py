@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
+from native_fixture_support import recorded_native_market
 from onewin_automation.cart_plan import cart_plan_from_order
 from onewin_automation.common import (
     CommonTaskError,
@@ -142,6 +143,7 @@ def executor_quote(task: dict) -> dict:
         "source_market": donor["source_market"], "odds": donor["odds"], "source_ts": NOW + 0.2,
         "currency": "USDT", "commission": 0.0, "max_stake": 8.45, "axes": copy.deepcopy(donor["market_axes"]),
         "live_submit_contract_verified": True, "live_submit_contract_source": "synthetic-chain-fixture",
+        "native_market": recorded_native_market(task["outcome_key"]),
     }
 
 

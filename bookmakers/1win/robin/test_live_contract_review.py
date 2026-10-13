@@ -21,6 +21,7 @@ import math
 from pathlib import Path
 import unittest
 
+from native_fixture_support import recorded_native_market
 from onewin_automation.common import (
     CommonTaskError,
     assess_live_readiness,
@@ -69,6 +70,9 @@ def real_executor_quote(task: dict, **overrides) -> dict:
         "live_submit_contract_verified": True,
         "live_submit_contract_source": "synthetic-review-fixture",
     }
+    native = recorded_native_market(task["outcome_key"])
+    if native is not None:
+        quote["native_market"] = native
     quote.update(overrides)
     return quote
 

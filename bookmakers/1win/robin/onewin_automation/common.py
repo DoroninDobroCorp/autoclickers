@@ -19,10 +19,12 @@ from typing import Any
 from .axes import (
     ADAPTER_VERSION as AXES_ADAPTER_VERSION,
     AxesContractError,
+    PLATFORM_SCHEMA,
     compare_facts,
     normalise_axes,
     public_facts,
 )
+from .native_axes import NATIVE_DERIVER_VERSION, NativeAxesUnknown, facts_from_native_evidence
 
 class CommonTaskError(ValueError):
     """A task, quote or attempt record violates the common execution contract.
@@ -92,6 +94,27 @@ def _finite_number(value: Any) -> float | None:
         return None
     number = float(value)
     return number if math.isfinite(number) else None
+
+
+def _describe_blockers(blockers: list[str], info: dict[str, Any]) -> str:
+    """Exact refusal text: blockers plus the facts that differ / the binding keys that failed."""
+    parts = []
+    for blocker in blockers:
+        extra = None
+        if blocker == 'axes_mismatch':
+            extra = info.get('axes_mismatch')
+        elif blocker == 'executor_binding_mismatch':
+            extra = info.get('binding_mismatch')
+        elif blocker == 'missing_or_unverified_axes':
+            extra = [info['axes_error']] if info.get('axes_error') else None
+        elif blocker == 'executor_native_semantics_unproven':
+            extra = [info['native_error']] if info.get('native_error') else None
+        elif blocker == 'native_axes_mismatch':
+            extra = info.get('native_axes_mismatch')
+        elif blocker == 'executor_axes_disagree_with_native':
+            extra = info.get('executor_axes_disagree')
+        parts.append(f"{blocker}({','.join(map(str, extra))})" if extra else blocker)
+    return ','.join(parts)
 
 
 def _ttl(is_live: Any) -> int:
@@ -244,12 +267,33 @@ def _quote_checks(task:dict[str,Any],quote:Any,*,now:float,ttl:int,stake:float|N
         if not isinstance(quote_axes,dict) or not quote_axes:raise AxesContractError('axes_missing','executor axes required')
         contexts=(task.get('reference_quote'),expected)
         expected_n=normalise_axes(expected_axes,contexts=contexts)
-        actual_n=normalise_axes(quote_axes,contexts=(quote,))
+        actual_n=normalise_axes(quote_axes,contexts=(quote,),require_registry=False)
         differing=compare_facts(expected_n,actual_n)
         if differing:
             blockers.append('axes_mismatch');info['axes_mismatch']=differing
         if expected_n['facts']['payout_rule']['status']!='proven':blockers.append('payout_rule_unverified')
         info['expected_axes']=expected_n;info['actual_axes']=actual_n
+        if expected_n['schema']==PLATFORM_SCHEMA:
+            # The executor must not echo the parser's axes: the settlement facts have to be
+            # derivable from the bookmaker's own native market text (closed world; unknown
+            # semantics stay unknown and block).
+            native=quote.get('native_market')
+            if not isinstance(native,dict):
+                blockers.append('executor_native_evidence_missing')
+            else:
+                try:
+                    derived_n=normalise_axes(facts_from_native_evidence(native),contexts=(quote,),require_registry=False)
+                    info['native_axes']=derived_n;info['native_deriver_version']=NATIVE_DERIVER_VERSION
+                    differing_native=compare_facts(expected_n,derived_n)
+                    if differing_native:
+                        blockers.append('native_axes_mismatch');info['native_axes_mismatch']=differing_native
+                    disagreeing=compare_facts(actual_n,derived_n)
+                    if disagreeing:
+                        blockers.append('executor_axes_disagree_with_native');info['executor_axes_disagree']=disagreeing
+                except NativeAxesUnknown as exc:
+                    blockers.append('executor_native_semantics_unproven');info['native_error']=exc.code
+                except AxesContractError as exc:
+                    blockers.append('executor_native_semantics_unproven');info['native_error']=exc.code
     except AxesContractError as exc:
         blockers.append('missing_or_unverified_axes');info['axes_error']=exc.code
     clock=None
@@ -275,7 +319,7 @@ def verify_executor_quote(task,quote,*,now):
     if expires is None or now>=expires:raise CommonTaskError('expired task',['task_expired_or_missing_expiry'])
     stake=_finite_positive(task.get('stake'))
     blockers,info=_quote_checks(task,quote,now=now,ttl=_ttl(task.get('is_live')),stake=stake)
-    if blockers:raise CommonTaskError('executor quote rejected: '+','.join(blockers),blockers)
+    if blockers:raise CommonTaskError('executor quote rejected: '+_describe_blockers(blockers,info),blockers)
     return {'schema_version':'automation-dry-run.v1','dry_run':True,'idempotency_key':task['idempotency_key'],
             'event_id':quote['native_event_id'],'market_id':quote['native_market_id'],'selection_id':quote['native_selection_id'],
             'expected_odds':quote['odds'],'currency':quote['currency'],'stake':task['stake'],
@@ -819,7 +863,8 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
     if not _valid_clock_argument(now):raise CommonTaskError('invalid clock',['invalid_clock'])
     verdict=evaluate_live_conditions(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only)
     if not verdict['execution_ready']:
-        raise CommonTaskError('live execution conditions not met: '+','.join(verdict['execution_blockers']),
+        raise CommonTaskError('live execution conditions not met: '
+                              +_describe_blockers(verdict['execution_blockers'],verdict['details']),
                               verdict['execution_blockers'])
     details=verdict['details'];expiries=details['expiries']
     if any(name not in expiries for name in _REQUIRED_EXPIRIES):
@@ -861,5 +906,8 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
                        ('logged_in','account_identity_verified','email_matches_expected','account_identity_source',
                         'currency','available_balance','observed_at') if key in account_state},
             'live_submit_contract_source':quote['live_submit_contract_source'],
+            'native_market':copy.deepcopy(quote.get('native_market')),
+            'native_deriver_version':details.get('native_deriver_version'),
+            'native_settlement_facts':public_facts(details['native_axes']) if details.get('native_axes') else None,
         },
     }
