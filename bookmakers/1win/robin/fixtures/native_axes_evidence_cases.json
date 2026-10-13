@@ -1,0 +1,6606 @@
+{
+ "provenance": {
+  "kind": "native_1win_oddsGroups_selections",
+  "sport_ids": {
+   "18": "Soccer",
+   "23": "Basketball",
+   "27": "Volleyball",
+   "33": "Tennis",
+   "34": "Handball",
+   "35": "Hockey"
+  },
+  "evidence_sha256_12": {
+   "live-final-four-sports-calculator.json": "7787e52aa204",
+   "live-value-calculator-01.json": "7a82d12823af",
+   "live-value-calculator-02.json": "65c6882780e1",
+   "live-final-calculator.json": "8c40b7eefa12",
+   "acceptance-value-calculator.json": "6587d21fa382",
+   "coverage-tv-calculator.json": "8cfa551b61cc",
+   "live-final-target-calculator.json": "fc88d1aea511",
+   "runtime-final-live.json": "cc15941ff127"
+  },
+  "note": "native values are copied verbatim from the capture; 'expected' comes from an independent oracle keyed by outcome code and group name; 'platform' is the real platform outcome of the same snapshot whose settlement axes are identical (null when the platform emitted none)."
+ },
+ "cases": [
+  {
+   "id": "c000",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/6/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Double chance",
+    "selection_name": "Sabah Baku FK Or SK Slavia Praha",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": {
+    "key": "P1 DC 12",
+    "path": "last_frame/input_snapshot/4/outcomes/140",
+    "sportref_market_type": "football.double_chance.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "12"
+    }
+   }
+  },
+  {
+   "id": "c001",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/6/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Double chance",
+    "selection_name": "Sabah Baku FK Or Draw",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": {
+    "key": "P1 DC 1X",
+    "path": "last_frame/input_snapshot/4/outcomes/148",
+    "sportref_market_type": "football.double_chance.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "1x"
+    }
+   }
+  },
+  {
+   "id": "c002",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/6/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Double chance",
+    "selection_name": "Draw Or SK Slavia Praha",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": {
+    "key": "P1 DC X2",
+    "path": "last_frame/input_snapshot/4/outcomes/80",
+    "sportref_market_type": "football.double_chance.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "x2"
+    }
+   }
+  },
+  {
+   "id": "c003",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/11/oddsList/6"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Sabah Baku FK -0.25",
+    "points": -0.25,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -0.25
+   },
+   "platform": {
+    "key": "P1 H1 -0.25",
+    "path": "last_frame/input_snapshot/4/outcomes/75",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": -0.25
+    }
+   }
+  },
+  {
+   "id": "c004",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/10/oddsList/8"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Burgos CF 1",
+    "points": 1.0,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 1.0
+   },
+   "platform": {
+    "key": "P1 H1 1",
+    "path": "last_frame/input_snapshot/0/outcomes/10",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": 1
+    }
+   }
+  },
+  {
+   "id": "c005",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/9/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "USM Khenchela 0",
+    "points": 0.0,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": {
+    "key": "P1 H1 0",
+    "path": "last_frame/input_snapshot/10/outcomes/0",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": 0
+    }
+   }
+  },
+  {
+   "id": "c006",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/10/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Granada CF -0.5",
+    "points": -0.5,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -0.5
+   },
+   "platform": {
+    "key": "P1 H2 -0.5",
+    "path": "last_frame/input_snapshot/0/outcomes/6",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": -0.5
+    }
+   }
+  },
+  {
+   "id": "c007",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/11/oddsList/11"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "SK Slavia Praha 0.25",
+    "points": 0.25,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.25
+   },
+   "platform": {
+    "key": "P1 H2 0.25",
+    "path": "last_frame/input_snapshot/4/outcomes/0",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": 0.25
+    }
+   }
+  },
+  {
+   "id": "c008",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/9/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Handicap",
+    "selection_name": "CS Constantine 0",
+    "points": 0.0,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": {
+    "key": "P1 H2 0",
+    "path": "last_frame/input_snapshot/10/outcomes/5",
+    "sportref_market_type": "football.handicap.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": 0
+    }
+   }
+  },
+  {
+   "id": "c009",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/2/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Result",
+    "selection_name": "USM Khenchela",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": {
+    "key": "P1 1",
+    "path": "last_frame/input_snapshot/10/outcomes/7",
+    "sportref_market_type": "football.result.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "home"
+    }
+   }
+  },
+  {
+   "id": "c010",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Result",
+    "selection_name": "CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": {
+    "key": "P1 2",
+    "path": "last_frame/input_snapshot/10/outcomes/3",
+    "sportref_market_type": "football.result.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c011",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": {
+    "key": "P1 X",
+    "path": "last_frame/input_snapshot/10/outcomes/16",
+    "sportref_market_type": "football.result.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "draw"
+    }
+   }
+  },
+  {
+   "id": "c012",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/13/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 T> 0.5",
+    "path": "last_frame/input_snapshot/10/outcomes/8",
+    "sportref_market_type": "football.total.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "total",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "over",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c013",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/13/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 T< 0.5",
+    "path": "last_frame/input_snapshot/10/outcomes/13",
+    "sportref_market_type": "football.total.goals.h1.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "total",
+     "period": "h1",
+     "target": "match",
+     "unit": "goals",
+     "side": "under",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c014",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/69/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Total. Even/Odd",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c015",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/69/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Total. Even/Odd",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c016",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/79/oddsList/4"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. SK Slavia Praha total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 IT2> 0.5",
+    "path": "last_frame/input_snapshot/4/outcomes/38",
+    "sportref_market_type": "football.team_total.goals.h1.away",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "h1",
+     "target": "away",
+     "unit": "goals",
+     "side": "over",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c017",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/79/oddsList/5"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. SK Slavia Praha total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 IT2< 0.5",
+    "path": "last_frame/input_snapshot/4/outcomes/71",
+    "sportref_market_type": "football.team_total.goals.h1.away",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "h1",
+     "target": "away",
+     "unit": "goals",
+     "side": "under",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c018",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/80/oddsList/4"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Sabah Baku FK total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 IT1> 0.5",
+    "path": "last_frame/input_snapshot/4/outcomes/134",
+    "sportref_market_type": "football.team_total.goals.h1.home",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "h1",
+     "target": "home",
+     "unit": "goals",
+     "side": "over",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c019",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/80/oddsList/5"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "1st half. Sabah Baku FK total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "P1 IT1< 0.5",
+    "path": "last_frame/input_snapshot/4/outcomes/36",
+    "sportref_market_type": "football.team_total.goals.h1.home",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "h1",
+     "target": "home",
+     "unit": "goals",
+     "side": "under",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c020",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "Sabah Baku FK -1.5",
+    "points": -1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c021",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "Sabah Baku FK 1.5",
+    "points": 1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c022",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/5"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "Sabah Baku FK 0",
+    "points": 0.0,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c023",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/3"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "SK Slavia Praha -1.5",
+    "points": -1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c024",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "SK Slavia Praha 1.5",
+    "points": 1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c025",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/12/oddsList/4"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Handicap",
+    "selection_name": "SK Slavia Praha 0",
+    "points": 0.0,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c026",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/45/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Odd/Even",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c027",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/45/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Odd/Even",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c028",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Result",
+    "selection_name": "USM Khenchela",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c029",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Result",
+    "selection_name": "CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c030",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/3/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c031",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/19/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c032",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/19/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "2nd half. Total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h2",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c033",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Both teams to score",
+    "selection_name": "No",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "no"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "btts",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "no"
+   },
+   "platform": {
+    "key": "BTTS No",
+    "path": "last_frame/input_snapshot/4/outcomes/18",
+    "sportref_market_type": "football.btts.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "btts",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "no"
+    }
+   }
+  },
+  {
+   "id": "c034",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/4/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Both teams to score",
+    "selection_name": "Yes",
+    "points": null,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "yes"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "btts",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "yes"
+   },
+   "platform": {
+    "key": "BTTS Yes",
+    "path": "last_frame/input_snapshot/4/outcomes/70",
+    "sportref_market_type": "football.btts.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "btts",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "yes"
+    }
+   }
+  },
+  {
+   "id": "c035",
+   "evidence": {
+    "file": "acceptance-value-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/56/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Handicap",
+    "selection_name": "Atletico Madrid -1.5",
+    "points": -1.5,
+    "home_name": "Atletico Madrid",
+    "away_name": "Manchester United",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c036",
+   "evidence": {
+    "file": "acceptance-value-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/55/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Handicap",
+    "selection_name": "Coventry City 1.5",
+    "points": 1.5,
+    "home_name": "Coventry City",
+    "away_name": "Newcastle United",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c037",
+   "evidence": {
+    "file": "acceptance-value-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/55/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Handicap",
+    "selection_name": "Newcastle United -1.5",
+    "points": -1.5,
+    "home_name": "Coventry City",
+    "away_name": "Newcastle United",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c038",
+   "evidence": {
+    "file": "acceptance-value-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/56/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Handicap",
+    "selection_name": "Manchester United 1.5",
+    "points": 1.5,
+    "home_name": "Atletico Madrid",
+    "away_name": "Manchester United",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c039",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/42/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Total",
+    "selection_name": "Over 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "over",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c040",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/42/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Total",
+    "selection_name": "Under 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "corners",
+    "side": "under",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c041",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/77/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. SK Slavia Praha total",
+    "selection_name": "Over 2.5",
+    "points": 2.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "corners",
+    "side": "over",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c042",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/77/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. SK Slavia Praha total",
+    "selection_name": "Under 2.5",
+    "points": 2.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "corners",
+    "side": "under",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c043",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/78/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Sabah Baku FK total",
+    "selection_name": "Over 2.5",
+    "points": 2.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "corners",
+    "side": "over",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c044",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/78/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. 1st half. Sabah Baku FK total",
+    "selection_name": "Under 2.5",
+    "points": 2.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "corners",
+    "side": "under",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c045",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/52/oddsList/4"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "Sabah Baku FK -1.5",
+    "points": -1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c046",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/52/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "Sabah Baku FK 1.5",
+    "points": 1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c047",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winSoccer40672587/raw/oddsGroups/10/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "Radomiak Radom 0.0",
+    "points": 0.0,
+    "home_name": "Radomiak Radom",
+    "away_name": "Motor Lublin",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c048",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/52/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "SK Slavia Praha -1.5",
+    "points": -1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c049",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/52/oddsList/5"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "SK Slavia Praha 1.5",
+    "points": 1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c050",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winSoccer40672587/raw/oddsGroups/10/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Handicap",
+    "selection_name": "Motor Lublin 0.0",
+    "points": 0.0,
+    "home_name": "Radomiak Radom",
+    "away_name": "Motor Lublin",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c051",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/18/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Total",
+    "selection_name": "Over 7.5",
+    "points": 7.5,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "over",
+    "line": 7.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c052",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/18/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Total",
+    "selection_name": "Under 7.5",
+    "points": 7.5,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "corners",
+    "side": "under",
+    "line": 7.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c053",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/75/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. SK Slavia Praha total",
+    "selection_name": "Over 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "corners",
+    "side": "over",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c054",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/75/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. SK Slavia Praha total",
+    "selection_name": "Under 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "corners",
+    "side": "under",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c055",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/76/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Sabah Baku FK total",
+    "selection_name": "Over 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "corners",
+    "side": "over",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c056",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/76/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Corners. Sabah Baku FK total",
+    "selection_name": "Under 4.5",
+    "points": 4.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "corners",
+    "side": "under",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c057",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/6/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Double Chance ",
+    "selection_name": "USM Khenchela Or CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": {
+    "key": "DC 12",
+    "path": "last_frame/input_snapshot/10/outcomes/6",
+    "sportref_market_type": "football.double_chance.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "12"
+    }
+   }
+  },
+  {
+   "id": "c058",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/6/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Double Chance ",
+    "selection_name": "USM Khenchela Or Draw",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": {
+    "key": "DC 1X",
+    "path": "last_frame/input_snapshot/10/outcomes/15",
+    "sportref_market_type": "football.double_chance.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "1x"
+    }
+   }
+  },
+  {
+   "id": "c059",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/6/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Double Chance ",
+    "selection_name": "Draw Or CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": {
+    "key": "DC X2",
+    "path": "last_frame/input_snapshot/10/outcomes/12",
+    "sportref_market_type": "football.double_chance.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "double_chance",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "x2"
+    }
+   }
+  },
+  {
+   "id": "c060",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/14/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Draw no bet",
+    "selection_name": "USM Khenchela",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "dnb",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c061",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/14/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Draw no bet",
+    "selection_name": "CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "dnb",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c062",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Full time result ",
+    "selection_name": "USM Khenchela",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": {
+    "key": "1",
+    "path": "last_frame/input_snapshot/10/outcomes/1",
+    "sportref_market_type": "football.result.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home"
+    }
+   }
+  },
+  {
+   "id": "c063",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Full time result ",
+    "selection_name": "CS Constantine",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": {
+    "key": "2",
+    "path": "last_frame/input_snapshot/10/outcomes/2",
+    "sportref_market_type": "football.result.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c064",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/0/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Full time result ",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": {
+    "key": "X",
+    "path": "last_frame/input_snapshot/10/outcomes/9",
+    "sportref_market_type": "football.result.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "draw"
+    }
+   }
+  },
+  {
+   "id": "c065",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/17/oddsList/7"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "USM Khenchela -1.5",
+    "points": -1.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": {
+    "key": "H1 -1.5",
+    "path": "last_frame/input_snapshot/10/outcomes/4",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": -1.5
+    }
+   }
+  },
+  {
+   "id": "c066",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/17/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "USM Khenchela 0.5",
+    "points": 0.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.5
+   },
+   "platform": {
+    "key": "H1 0.5",
+    "path": "last_frame/input_snapshot/10/outcomes/11",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": 0.5
+    }
+   }
+  },
+  {
+   "id": "c067",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/10/oddsList/2"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "Sabah Baku FK 0",
+    "points": 0.0,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": {
+    "key": "H1 0",
+    "path": "last_frame/input_snapshot/4/outcomes/136",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": 0
+    }
+   }
+  },
+  {
+   "id": "c068",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/17/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "CS Constantine -0.5",
+    "points": -0.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -0.5
+   },
+   "platform": {
+    "key": "H2 -0.5",
+    "path": "last_frame/input_snapshot/10/outcomes/14",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": -0.5
+    }
+   }
+  },
+  {
+   "id": "c069",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/17/oddsList/6"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "CS Constantine 1.5",
+    "points": 1.5,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": {
+    "key": "H2 1.5",
+    "path": "last_frame/input_snapshot/10/outcomes/10",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": 1.5
+    }
+   }
+  },
+  {
+   "id": "c070",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/10/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Handicap",
+    "selection_name": "SK Slavia Praha 0",
+    "points": 0.0,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": {
+    "key": "H2 0",
+    "path": "last_frame/input_snapshot/4/outcomes/83",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": 0
+    }
+   }
+  },
+  {
+   "id": "c071",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/11/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Odd/Even",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c072",
+   "evidence": {
+    "file": "live-value-calculator-01.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/11/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Odd/Even",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "USM Khenchela",
+    "away_name": "CS Constantine",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "odd_even",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c073",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Total",
+    "selection_name": "Over 2.0",
+    "points": 2.0,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 2.0
+   },
+   "platform": {
+    "key": "T> 2",
+    "path": "last_frame/input_snapshot/0/outcomes/2",
+    "sportref_market_type": "football.total.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "total",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "over",
+     "line": 2
+    }
+   }
+  },
+  {
+   "id": "c074",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Total",
+    "selection_name": "Under 2.0",
+    "points": 2.0,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 2.0
+   },
+   "platform": {
+    "key": "T< 2",
+    "path": "last_frame/input_snapshot/0/outcomes/17",
+    "sportref_market_type": "football.total.goals.ft.match",
+    "axes": {
+     "sport": "football",
+     "market_family": "total",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "under",
+     "line": 2
+    }
+   }
+  },
+  {
+   "id": "c075",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/34/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Granada CF total",
+    "selection_name": "Over 1.5",
+    "points": 1.5,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 1.5
+   },
+   "platform": {
+    "key": "IT2> 1.5",
+    "path": "last_frame/input_snapshot/0/outcomes/7",
+    "sportref_market_type": "football.team_total.goals.ft.away",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "ft",
+     "target": "away",
+     "unit": "goals",
+     "side": "over",
+     "line": 1.5
+    }
+   }
+  },
+  {
+   "id": "c076",
+   "evidence": {
+    "file": "live-value-calculator-02.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/34/oddsList/1"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Granada CF total",
+    "selection_name": "Under 1.5",
+    "points": 1.5,
+    "home_name": "Burgos CF",
+    "away_name": "Granada CF",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 1.5
+   },
+   "platform": {
+    "key": "IT2< 1.5",
+    "path": "last_frame/input_snapshot/0/outcomes/0",
+    "sportref_market_type": "football.team_total.goals.ft.away",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "ft",
+     "target": "away",
+     "unit": "goals",
+     "side": "under",
+     "line": 1.5
+    }
+   }
+  },
+  {
+   "id": "c077",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/71/oddsList/4"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Sabah Baku FK total",
+    "selection_name": "Over 2.5",
+    "points": 2.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 2.5
+   },
+   "platform": {
+    "key": "IT1> 2.5",
+    "path": "last_frame/input_snapshot/4/outcomes/91",
+    "sportref_market_type": "football.team_total.goals.ft.home",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "ft",
+     "target": "home",
+     "unit": "goals",
+     "side": "over",
+     "line": 2.5
+    }
+   }
+  },
+  {
+   "id": "c078",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/4/leg_a/raw/oddsGroups/71/oddsList/0"
+   },
+   "native": {
+    "sport_id": 18,
+    "group_name": "Sabah Baku FK total",
+    "selection_name": "Under 1.5",
+    "points": 1.5,
+    "home_name": "Sabah Baku FK",
+    "away_name": "SK Slavia Praha",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "football",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 1.5
+   },
+   "platform": {
+    "key": "IT1< 1.5",
+    "path": "last_frame/input_snapshot/4/outcomes/54",
+    "sportref_market_type": "football.team_total.goals.ft.home",
+    "axes": {
+     "sport": "football",
+     "market_family": "team_total",
+     "period": "ft",
+     "target": "home",
+     "unit": "goals",
+     "side": "under",
+     "line": 1.5
+    }
+   }
+  },
+  {
+   "id": "c079",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Bahcesehir Koleji -7.5",
+    "points": -7.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": -7.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c080",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41329922/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Kolossos 4.5",
+    "points": 4.5,
+    "home_name": "Kolossos",
+    "away_name": "PAOK",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c081",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41329922/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Handicap",
+    "selection_name": "PAOK -4.5",
+    "points": -4.5,
+    "home_name": "Kolossos",
+    "away_name": "PAOK",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": -4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c082",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Handicap",
+    "selection_name": "Manresa 6.5",
+    "points": 6.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": 6.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c083",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/13/leg_a/raw/oddsGroups/10/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Odd/Even",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "BC Roma SPQR",
+    "away_name": "BC Balkan",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c084",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/13/leg_a/raw/oddsGroups/10/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Odd/Even",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "BC Roma SPQR",
+    "away_name": "BC Balkan",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c085",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/6/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Result",
+    "selection_name": "Bahcesehir Koleji",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c086",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/6/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Result",
+    "selection_name": "Manresa",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c087",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/6/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c088",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/9/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Total",
+    "selection_name": "Over 86.5",
+    "points": 86.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "over",
+    "line": 86.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c089",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/9/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Total",
+    "selection_name": "Under 86.5",
+    "points": 86.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "points",
+    "side": "under",
+    "line": 86.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c090",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/1/leg_a/raw/oddsGroups/23/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Peristeri total",
+    "selection_name": "Over 40.5",
+    "points": 40.5,
+    "home_name": "Pallacanestro Varese",
+    "away_name": "Peristeri",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "points",
+    "side": "over",
+    "line": 40.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c091",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/1/leg_a/raw/oddsGroups/23/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Peristeri total",
+    "selection_name": "Under 40.5",
+    "points": 40.5,
+    "home_name": "Pallacanestro Varese",
+    "away_name": "Peristeri",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "away",
+    "unit": "points",
+    "side": "under",
+    "line": 40.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c092",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/26/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Bahcesehir Koleji total",
+    "selection_name": "Over 47.5",
+    "points": 47.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "points",
+    "side": "over",
+    "line": 47.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c093",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/26/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st half. Bahcesehir Koleji total",
+    "selection_name": "Under 47.5",
+    "points": 47.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "h1",
+    "target": "home",
+    "unit": "points",
+    "side": "under",
+    "line": 47.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c094",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Handicap",
+    "selection_name": "Bahcesehir Koleji -4.5",
+    "points": -4.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": -4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c095",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41329922/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Handicap",
+    "selection_name": "Kolossos 2.5",
+    "points": 2.5,
+    "home_name": "Kolossos",
+    "away_name": "PAOK",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c096",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41329922/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Handicap",
+    "selection_name": "PAOK -2.5",
+    "points": -2.5,
+    "home_name": "Kolossos",
+    "away_name": "PAOK",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": -2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c097",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Handicap",
+    "selection_name": "Manresa 4.5",
+    "points": 4.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": 4.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c098",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/13/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Odd/Even",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c099",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/13/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Odd/Even",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c100",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/5/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Result",
+    "selection_name": "Bahcesehir Koleji",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c101",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/5/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Result",
+    "selection_name": "Manresa",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c102",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/5/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c103",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/8/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Total",
+    "selection_name": "Over 43.5",
+    "points": 43.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "over",
+    "line": 43.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c104",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/8/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Total",
+    "selection_name": "Under 44.5",
+    "points": 44.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q1",
+    "target": "match",
+    "unit": "points",
+    "side": "under",
+    "line": 44.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c105",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/28/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Manresa total",
+    "selection_name": "Over 20.5",
+    "points": 20.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q1",
+    "target": "away",
+    "unit": "points",
+    "side": "over",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c106",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/28/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Manresa total",
+    "selection_name": "Under 20.5",
+    "points": 20.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q1",
+    "target": "away",
+    "unit": "points",
+    "side": "under",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c107",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/27/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Bahcesehir Koleji total",
+    "selection_name": "Over 24.5",
+    "points": 24.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q1",
+    "target": "home",
+    "unit": "points",
+    "side": "over",
+    "line": 24.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c108",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/27/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "1st quarter. Bahcesehir Koleji total",
+    "selection_name": "Under 24.5",
+    "points": 24.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q1",
+    "target": "home",
+    "unit": "points",
+    "side": "under",
+    "line": 24.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c109",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/19/leg_a/raw/oddsGroups/6/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Result",
+    "selection_name": "Mineros de Zacatecas",
+    "points": null,
+    "home_name": "Mineros de Zacatecas",
+    "away_name": "Diablos Rojos Del Mexico",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q2",
+    "target": "match",
+    "unit": "points",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c110",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/19/leg_a/raw/oddsGroups/6/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Result",
+    "selection_name": "Diablos Rojos Del Mexico",
+    "points": null,
+    "home_name": "Mineros de Zacatecas",
+    "away_name": "Diablos Rojos Del Mexico",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q2",
+    "target": "match",
+    "unit": "points",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c111",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/19/leg_a/raw/oddsGroups/6/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "Mineros de Zacatecas",
+    "away_name": "Diablos Rojos Del Mexico",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "q2",
+    "target": "match",
+    "unit": "points",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c112",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/9/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Total",
+    "selection_name": "Over 41.5",
+    "points": 41.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q2",
+    "target": "match",
+    "unit": "points",
+    "side": "over",
+    "line": 41.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c113",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/9/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Total",
+    "selection_name": "Under 41.5",
+    "points": 41.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q2",
+    "target": "match",
+    "unit": "points",
+    "side": "under",
+    "line": 41.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c114",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/19/leg_a/raw/oddsGroups/17/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Diablos Rojos Del Mexico total",
+    "selection_name": "Over 20.5",
+    "points": 20.5,
+    "home_name": "Mineros de Zacatecas",
+    "away_name": "Diablos Rojos Del Mexico",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q2",
+    "target": "away",
+    "unit": "points",
+    "side": "over",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c115",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/19/leg_a/raw/oddsGroups/17/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Diablos Rojos Del Mexico total",
+    "selection_name": "Under 20.5",
+    "points": 20.5,
+    "home_name": "Mineros de Zacatecas",
+    "away_name": "Diablos Rojos Del Mexico",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q2",
+    "target": "away",
+    "unit": "points",
+    "side": "under",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c116",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/33/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Lietkabelis total",
+    "selection_name": "Over 19.5",
+    "points": 19.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q2",
+    "target": "home",
+    "unit": "points",
+    "side": "over",
+    "line": 19.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c117",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/33/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "2nd quarter. Lietkabelis total",
+    "selection_name": "Under 19.5",
+    "points": 19.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q2",
+    "target": "home",
+    "unit": "points",
+    "side": "under",
+    "line": 19.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c118",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/10/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Total",
+    "selection_name": "Over 41.5",
+    "points": 41.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q3",
+    "target": "match",
+    "unit": "points",
+    "side": "over",
+    "line": 41.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c119",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350247/raw/oddsGroups/10/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Total",
+    "selection_name": "Under 41.5",
+    "points": 41.5,
+    "home_name": "Lietkabelis",
+    "away_name": "PAOK",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "q3",
+    "target": "match",
+    "unit": "points",
+    "side": "under",
+    "line": 41.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c120",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350258/raw/oddsGroups/30/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Bourg-En-Bresse total",
+    "selection_name": "Over 21.5",
+    "points": 21.5,
+    "home_name": "Neptunas Klaipeda",
+    "away_name": "Bourg-En-Bresse",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q3",
+    "target": "away",
+    "unit": "points",
+    "side": "over",
+    "line": 21.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c121",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350258/raw/oddsGroups/30/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Bourg-En-Bresse total",
+    "selection_name": "Under 21.5",
+    "points": 21.5,
+    "home_name": "Neptunas Klaipeda",
+    "away_name": "Bourg-En-Bresse",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q3",
+    "target": "away",
+    "unit": "points",
+    "side": "under",
+    "line": 21.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c122",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350258/raw/oddsGroups/31/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Neptunas Klaipeda total",
+    "selection_name": "Over 20.5",
+    "points": 20.5,
+    "home_name": "Neptunas Klaipeda",
+    "away_name": "Bourg-En-Bresse",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q3",
+    "target": "home",
+    "unit": "points",
+    "side": "over",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c123",
+   "evidence": {
+    "file": "runtime-final-live.json",
+    "path": "match_data/data/1winBasketball41350258/raw/oddsGroups/31/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "3rd quarter. Neptunas Klaipeda total",
+    "selection_name": "Under 20.5",
+    "points": 20.5,
+    "home_name": "Neptunas Klaipeda",
+    "away_name": "Bourg-En-Bresse",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "q3",
+    "target": "home",
+    "unit": "points",
+    "side": "under",
+    "line": 20.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c124",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Handicap (incl. OT)",
+    "selection_name": "Bahcesehir Koleji -11.5",
+    "points": -11.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": -11.5
+   },
+   "platform": {
+    "key": "H1 -11.5",
+    "path": "last_frame/input_snapshot/0/outcomes/3",
+    "sportref_market_type": "basketball.handicap.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "handicap",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "home",
+     "line": -11.5
+    }
+   }
+  },
+  {
+   "id": "c125",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/16/leg_a/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Handicap (incl. OT)",
+    "selection_name": "Armann (w) 11.5",
+    "points": 11.5,
+    "home_name": "Armann (w)",
+    "away_name": "Valur (w)",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "home",
+    "line": 11.5
+   },
+   "platform": {
+    "key": "H1 11.5",
+    "path": "last_frame/input_snapshot/16/outcomes/3",
+    "sportref_market_type": "basketball.handicap.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "handicap",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "home",
+     "line": 11.5
+    }
+   }
+  },
+  {
+   "id": "c126",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/16/leg_a/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Handicap (incl. OT)",
+    "selection_name": "Valur (w) -11.5",
+    "points": -11.5,
+    "home_name": "Armann (w)",
+    "away_name": "Valur (w)",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": -11.5
+   },
+   "platform": {
+    "key": "H2 -11.5",
+    "path": "last_frame/input_snapshot/16/outcomes/2",
+    "sportref_market_type": "basketball.handicap.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "handicap",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "away",
+     "line": -11.5
+    }
+   }
+  },
+  {
+   "id": "c127",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Handicap (incl. OT)",
+    "selection_name": "Manresa 15.5",
+    "points": 15.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "handicap",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "away",
+    "line": 15.5
+   },
+   "platform": {
+    "key": "H2 15.5",
+    "path": "last_frame/input_snapshot/0/outcomes/20",
+    "sportref_market_type": "basketball.handicap.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "handicap",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "away",
+     "line": 15.5
+    }
+   }
+  },
+  {
+   "id": "c128",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/11/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Odd/Even (incl. OT)",
+    "selection_name": "Even",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "even"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "even"
+   },
+   "platform": null
+  },
+  {
+   "id": "c129",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/11/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Odd/Even (incl. OT)",
+    "selection_name": "Odd",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "odd"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "odd_even",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "odd"
+   },
+   "platform": null
+  },
+  {
+   "id": "c130",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Result (reg. time)",
+    "selection_name": "Bahcesehir Koleji",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "ft_reg",
+    "target": "match",
+    "unit": "points",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c131",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Result (reg. time)",
+    "selection_name": "Manresa",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "ft_reg",
+    "target": "match",
+    "unit": "points",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c132",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Result (reg. time)",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "result",
+    "period": "ft_reg",
+    "target": "match",
+    "unit": "points",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c133",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/7/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Total (incl. OT)",
+    "selection_name": "Over 175.5",
+    "points": 175.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "over",
+    "line": 175.5
+   },
+   "platform": {
+    "key": "T> 175.5",
+    "path": "last_frame/input_snapshot/0/outcomes/17",
+    "sportref_market_type": "basketball.total.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "total",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "over",
+     "line": 175.5
+    }
+   }
+  },
+  {
+   "id": "c134",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/7/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Total (incl. OT)",
+    "selection_name": "Under 173.5",
+    "points": 173.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "total",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "under",
+    "line": 173.5
+   },
+   "platform": {
+    "key": "T< 173.5",
+    "path": "last_frame/input_snapshot/0/outcomes/5",
+    "sportref_market_type": "basketball.total.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "total",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "under",
+     "line": 173.5
+    }
+   }
+  },
+  {
+   "id": "c135",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Winner (incl. OT)",
+    "selection_name": "Bahcesehir Koleji",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "moneyline",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "home"
+   },
+   "platform": {
+    "key": "1",
+    "path": "last_frame/input_snapshot/0/outcomes/7",
+    "sportref_market_type": "basketball.moneyline.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "moneyline",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "home"
+    }
+   }
+  },
+  {
+   "id": "c136",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Winner (incl. OT)",
+    "selection_name": "Manresa",
+    "points": null,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "moneyline",
+    "period": "ft_ot",
+    "target": "match",
+    "unit": "points",
+    "side": "away"
+   },
+   "platform": {
+    "key": "2",
+    "path": "last_frame/input_snapshot/0/outcomes/0",
+    "sportref_market_type": "basketball.moneyline.points.ft_ot.match",
+    "axes": {
+     "sport": "basketball",
+     "market_family": "moneyline",
+     "period": "ft_ot",
+     "target": "match",
+     "unit": "points",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c137",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/25/oddsList/1"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Manresa total (incl. OT)",
+    "selection_name": "Over 81.5",
+    "points": 81.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "ft_ot",
+    "target": "away",
+    "unit": "points",
+    "side": "over",
+    "line": 81.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c138",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/25/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Manresa total (incl. OT)",
+    "selection_name": "Under 81.5",
+    "points": 81.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "ft_ot",
+    "target": "away",
+    "unit": "points",
+    "side": "under",
+    "line": 81.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c139",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/24/oddsList/0"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Bahcesehir Koleji total (incl. OT)",
+    "selection_name": "Over 94.5",
+    "points": 94.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "ft_ot",
+    "target": "home",
+    "unit": "points",
+    "side": "over",
+    "line": 94.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c140",
+   "evidence": {
+    "file": "live-final-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/24/oddsList/2"
+   },
+   "native": {
+    "sport_id": 23,
+    "group_name": "Bahcesehir Koleji total (incl. OT)",
+    "selection_name": "Under 93.5",
+    "points": 93.5,
+    "home_name": "Bahcesehir Koleji",
+    "away_name": "Manresa",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "basketball",
+    "market_family": "team_total",
+    "period": "ft_ot",
+    "target": "home",
+    "unit": "points",
+    "side": "under",
+    "line": 93.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c141",
+   "evidence": {
+    "file": "coverage-tv-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 33,
+    "group_name": "Winner",
+    "selection_name": "Suzuna Oigawa",
+    "points": null,
+    "home_name": "Suzuna Oigawa",
+    "away_name": "Sofiia Suslova",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "tennis",
+    "market_family": "moneyline",
+    "period": "match",
+    "target": "match",
+    "unit": "sets",
+    "side": "home"
+   },
+   "platform": {
+    "key": "1",
+    "path": "last_frame/input_snapshot/0/outcomes/1",
+    "sportref_market_type": "tennis.moneyline.sets.match.match",
+    "axes": {
+     "sport": "tennis",
+     "market_family": "moneyline",
+     "period": "match",
+     "target": "match",
+     "unit": "sets",
+     "side": "home"
+    }
+   }
+  },
+  {
+   "id": "c142",
+   "evidence": {
+    "file": "coverage-tv-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 33,
+    "group_name": "Winner",
+    "selection_name": "Sofiia Suslova",
+    "points": null,
+    "home_name": "Suzuna Oigawa",
+    "away_name": "Sofiia Suslova",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "tennis",
+    "market_family": "moneyline",
+    "period": "match",
+    "target": "match",
+    "unit": "sets",
+    "side": "away"
+   },
+   "platform": {
+    "key": "2",
+    "path": "last_frame/input_snapshot/0/outcomes/0",
+    "sportref_market_type": "tennis.moneyline.sets.match.match",
+    "axes": {
+     "sport": "tennis",
+     "market_family": "moneyline",
+     "period": "match",
+     "target": "match",
+     "unit": "sets",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c143",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Asian handicap",
+    "selection_name": "SG Flensburg-Handewitt -6.5",
+    "points": -6.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -6.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c144",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/9/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Asian handicap",
+    "selection_name": "HCB OKD Karvina 2.5",
+    "points": 2.5,
+    "home_name": "HCB OKD Karvina",
+    "away_name": "SL Benfica",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c145",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/9/leg_a/raw/oddsGroups/4/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Asian handicap",
+    "selection_name": "SL Benfica -2.5",
+    "points": -2.5,
+    "home_name": "HCB OKD Karvina",
+    "away_name": "SL Benfica",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c146",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Asian handicap",
+    "selection_name": "HCM Buzau 6.5",
+    "points": 6.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 6.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c147",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/1/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Total",
+    "selection_name": "Over 33.5",
+    "points": 33.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 33.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c148",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/1/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "1st half. Total",
+    "selection_name": "Under 33.5",
+    "points": 33.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "total",
+    "period": "h1",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 33.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c149",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Handicap",
+    "selection_name": "SG Flensburg-Handewitt -11.5",
+    "points": -11.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -11.5
+   },
+   "platform": {
+    "key": "H1 -11.5",
+    "path": "last_frame/input_snapshot/3/outcomes/0",
+    "sportref_market_type": "handball.handicap.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": -11.5
+    }
+   }
+  },
+  {
+   "id": "c150",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/9/leg_a/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Handicap",
+    "selection_name": "HCB OKD Karvina 4.5",
+    "points": 4.5,
+    "home_name": "HCB OKD Karvina",
+    "away_name": "SL Benfica",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 4.5
+   },
+   "platform": {
+    "key": "H1 4.5",
+    "path": "last_frame/input_snapshot/9/outcomes/5",
+    "sportref_market_type": "handball.handicap.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home",
+     "line": 4.5
+    }
+   }
+  },
+  {
+   "id": "c151",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/9/leg_a/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Handicap",
+    "selection_name": "SL Benfica -4.5",
+    "points": -4.5,
+    "home_name": "HCB OKD Karvina",
+    "away_name": "SL Benfica",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -4.5
+   },
+   "platform": {
+    "key": "H2 -4.5",
+    "path": "last_frame/input_snapshot/9/outcomes/4",
+    "sportref_market_type": "handball.handicap.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": -4.5
+    }
+   }
+  },
+  {
+   "id": "c152",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Handicap",
+    "selection_name": "HCM Buzau 11.5",
+    "points": 11.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "handicap",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 11.5
+   },
+   "platform": {
+    "key": "H2 11.5",
+    "path": "last_frame/input_snapshot/3/outcomes/1",
+    "sportref_market_type": "handball.handicap.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "handicap",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away",
+     "line": 11.5
+    }
+   }
+  },
+  {
+   "id": "c153",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/6/leg_a/raw/oddsGroups/0/oddsList/2"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Result",
+    "selection_name": "Chambery Savoie HB",
+    "points": null,
+    "home_name": "Chambery Savoie HB",
+    "away_name": "Kadetten Schaffhausen",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c154",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/6/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Result",
+    "selection_name": "Kadetten Schaffhausen",
+    "points": null,
+    "home_name": "Chambery Savoie HB",
+    "away_name": "Kadetten Schaffhausen",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": {
+    "key": "2",
+    "path": "last_frame/input_snapshot/6/outcomes/0",
+    "sportref_market_type": "handball.result.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c155",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/6/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "Chambery Savoie HB",
+    "away_name": "Kadetten Schaffhausen",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c156",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Total",
+    "selection_name": "Over 67.5",
+    "points": 67.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 67.5
+   },
+   "platform": {
+    "key": "T> 67.5",
+    "path": "last_frame/input_snapshot/3/outcomes/2",
+    "sportref_market_type": "handball.total.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "total",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "over",
+     "line": 67.5
+    }
+   }
+  },
+  {
+   "id": "c157",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "Total",
+    "selection_name": "Under 67.5",
+    "points": 67.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "total",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 67.5
+   },
+   "platform": {
+    "key": "T< 67.5",
+    "path": "last_frame/input_snapshot/3/outcomes/3",
+    "sportref_market_type": "handball.total.goals.ft.match",
+    "axes": {
+     "sport": "handball",
+     "market_family": "total",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "under",
+     "line": 67.5
+    }
+   }
+  },
+  {
+   "id": "c158",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "HCM Buzau total",
+    "selection_name": "Over 27.5",
+    "points": 27.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 27.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c159",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/3/leg_a/raw/oddsGroups/4/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "HCM Buzau total",
+    "selection_name": "Under 27.5",
+    "points": 27.5,
+    "home_name": "SG Flensburg-Handewitt",
+    "away_name": "HCM Buzau",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 27.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c160",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/5/oddsList/0"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "VfL Gummersbach 1861 total",
+    "selection_name": "Over 33.5",
+    "points": 33.5,
+    "home_name": "VfL Gummersbach 1861",
+    "away_name": "Eurofarm Pelister",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 33.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c161",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/10/leg_a/raw/oddsGroups/5/oddsList/1"
+   },
+   "native": {
+    "sport_id": 34,
+    "group_name": "VfL Gummersbach 1861 total",
+    "selection_name": "Under 33.5",
+    "points": 33.5,
+    "home_name": "VfL Gummersbach 1861",
+    "away_name": "Eurofarm Pelister",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "handball",
+    "market_family": "team_total",
+    "period": "ft",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 33.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c162",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/6/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Both teams to score",
+    "selection_name": "No",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "no"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "no"
+   },
+   "platform": null
+  },
+  {
+   "id": "c163",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/6/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Both teams to score",
+    "selection_name": "Yes",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "yes"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "yes"
+   },
+   "platform": null
+  },
+  {
+   "id": "c164",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/2/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Double chance",
+    "selection_name": "San Jose Sharks Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": null
+  },
+  {
+   "id": "c165",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/2/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Double chance",
+    "selection_name": "San Jose Sharks Or Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": null
+  },
+  {
+   "id": "c166",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/2/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Double chance",
+    "selection_name": "Draw Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": null
+  },
+  {
+   "id": "c167",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/14/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "San Jose Sharks -1.5",
+    "points": -1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c168",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/1/leg_a/raw/oddsGroups/14/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "GCK Lions 1.5",
+    "points": 1.5,
+    "home_name": "GCK Lions",
+    "away_name": "Basel",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c169",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/14/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "San Jose Sharks 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c170",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/1/leg_a/raw/oddsGroups/14/oddsList/3"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "Basel -1.5",
+    "points": -1.5,
+    "home_name": "GCK Lions",
+    "away_name": "Basel",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c171",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/14/oddsList/3"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "Boston Bruins 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c172",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/14/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Handicap",
+    "selection_name": "Boston Bruins 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c173",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/20/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Result",
+    "selection_name": "San Jose Sharks",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c174",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/20/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Result",
+    "selection_name": "Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c175",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/20/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c176",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/10/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Total",
+    "selection_name": "Over 2.0",
+    "points": 2.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 2.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c177",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/10/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Total",
+    "selection_name": "Under 2.0",
+    "points": 2.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p1",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 2.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c178",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/27/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Boston Bruins total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p1",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c179",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/27/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. Boston Bruins total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p1",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c180",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/26/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. San Jose Sharks total",
+    "selection_name": "Over 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p1",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c181",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/26/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "1st period. San Jose Sharks total",
+    "selection_name": "Under 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p1",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c182",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/7/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Both teams to score",
+    "selection_name": "No",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "no"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "no"
+   },
+   "platform": null
+  },
+  {
+   "id": "c183",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/7/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Both teams to score",
+    "selection_name": "Yes",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "yes"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "yes"
+   },
+   "platform": null
+  },
+  {
+   "id": "c184",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/3/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Double chance",
+    "selection_name": "San Jose Sharks Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": null
+  },
+  {
+   "id": "c185",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/3/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Double chance",
+    "selection_name": "San Jose Sharks Or Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": null
+  },
+  {
+   "id": "c186",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/3/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Double chance",
+    "selection_name": "Draw Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": null
+  },
+  {
+   "id": "c187",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/4"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "San Jose Sharks -1.5",
+    "points": -1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c188",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/5"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "San Jose Sharks 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c189",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "San Jose Sharks 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c190",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "Boston Bruins -1.5",
+    "points": -1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c191",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/3"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "Boston Bruins 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c192",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/15/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Handicap",
+    "selection_name": "Boston Bruins 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c193",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/18/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Result",
+    "selection_name": "San Jose Sharks",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c194",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/18/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Result",
+    "selection_name": "Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c195",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/18/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c196",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/11/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Total",
+    "selection_name": "Over 2.5",
+    "points": 2.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c197",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/11/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Total",
+    "selection_name": "Under 2.5",
+    "points": 2.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p2",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 2.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c198",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/24/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Boston Bruins total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p2",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c199",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/24/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. Boston Bruins total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p2",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c200",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/25/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. San Jose Sharks total",
+    "selection_name": "Over 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p2",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c201",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/25/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "2nd period. San Jose Sharks total",
+    "selection_name": "Under 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p2",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c202",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/8/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Both teams to score",
+    "selection_name": "No",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "no"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "no"
+   },
+   "platform": null
+  },
+  {
+   "id": "c203",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/8/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Both teams to score",
+    "selection_name": "Yes",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "yes"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "btts",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "yes"
+   },
+   "platform": null
+  },
+  {
+   "id": "c204",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Double chance",
+    "selection_name": "San Jose Sharks Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": null
+  },
+  {
+   "id": "c205",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Double chance",
+    "selection_name": "San Jose Sharks Or Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": null
+  },
+  {
+   "id": "c206",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/4/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Double chance",
+    "selection_name": "Draw Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": null
+  },
+  {
+   "id": "c207",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/3"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "San Jose Sharks -1.5",
+    "points": -1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c208",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/4"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "San Jose Sharks 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c209",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "San Jose Sharks 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "home",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c210",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/5"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "Boston Bruins -1.5",
+    "points": -1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": -1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c211",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "Boston Bruins 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c212",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/16/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Handicap",
+    "selection_name": "Boston Bruins 0",
+    "points": 0.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "handicap",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "away",
+    "line": 0.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c213",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/17/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Result",
+    "selection_name": "San Jose Sharks",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": null
+  },
+  {
+   "id": "c214",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/17/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Result",
+    "selection_name": "Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": null
+  },
+  {
+   "id": "c215",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/17/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": null
+  },
+  {
+   "id": "c216",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/12/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Total",
+    "selection_name": "Over 3.0",
+    "points": 3.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "over",
+    "line": 3.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c217",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/12/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Total",
+    "selection_name": "Under 3.0",
+    "points": 3.0,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "total",
+    "period": "p3",
+    "target": "match",
+    "unit": "goals",
+    "side": "under",
+    "line": 3.0
+   },
+   "platform": null
+  },
+  {
+   "id": "c218",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/29/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Boston Bruins total",
+    "selection_name": "Over 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p3",
+    "target": "away",
+    "unit": "goals",
+    "side": "over",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c219",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/29/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. Boston Bruins total",
+    "selection_name": "Under 0.5",
+    "points": 0.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p3",
+    "target": "away",
+    "unit": "goals",
+    "side": "under",
+    "line": 0.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c220",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/28/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. San Jose Sharks total",
+    "selection_name": "Over 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "over"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p3",
+    "target": "home",
+    "unit": "goals",
+    "side": "over",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c221",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/28/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "3rd period. San Jose Sharks total",
+    "selection_name": "Under 1.5",
+    "points": 1.5,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "under"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "team_total",
+    "period": "p3",
+    "target": "home",
+    "unit": "goals",
+    "side": "under",
+    "line": 1.5
+   },
+   "platform": null
+  },
+  {
+   "id": "c222",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Double chance",
+    "selection_name": "San Jose Sharks Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "12"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "12"
+   },
+   "platform": null
+  },
+  {
+   "id": "c223",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Double chance",
+    "selection_name": "San Jose Sharks Or Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "1x"
+   },
+   "platform": null
+  },
+  {
+   "id": "c224",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/1/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Double chance",
+    "selection_name": "Draw Or Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "double_chance",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "x2"
+   },
+   "platform": null
+  },
+  {
+   "id": "c225",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/2"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Full time result",
+    "selection_name": "San Jose Sharks",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "1"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "home"
+   },
+   "platform": {
+    "key": "1",
+    "path": "last_frame/input_snapshot/0/outcomes/0",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "axes": {
+     "sport": "ice_hockey",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "home"
+    }
+   }
+  },
+  {
+   "id": "c226",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/1"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Full time result",
+    "selection_name": "Boston Bruins",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "2"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "away"
+   },
+   "platform": {
+    "key": "2",
+    "path": "last_frame/input_snapshot/0/outcomes/2",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "axes": {
+     "sport": "ice_hockey",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "away"
+    }
+   }
+  },
+  {
+   "id": "c227",
+   "evidence": {
+    "file": "live-final-four-sports-calculator.json",
+    "path": "last_frame/input_snapshot/0/leg_a/raw/oddsGroups/0/oddsList/0"
+   },
+   "native": {
+    "sport_id": 35,
+    "group_name": "Full time result",
+    "selection_name": "Draw",
+    "points": null,
+    "home_name": "San Jose Sharks",
+    "away_name": "Boston Bruins",
+    "outcome_code": "x"
+   },
+   "expected": {
+    "sport": "ice_hockey",
+    "market_family": "result",
+    "period": "ft",
+    "target": "match",
+    "unit": "goals",
+    "side": "draw"
+   },
+   "platform": {
+    "key": "X",
+    "path": "last_frame/input_snapshot/0/outcomes/1",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "axes": {
+     "sport": "ice_hockey",
+     "market_family": "result",
+     "period": "ft",
+     "target": "match",
+     "unit": "goals",
+     "side": "draw"
+    }
+   }
+  }
+ ]
+}
