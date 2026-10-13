@@ -69,7 +69,7 @@ const session = await withBrowserSession({
   proxy, expectedProxyEndpoint: expectedEndpoint, storageState: state,
   cookieOverrides: [{ name: 'project_locale', value: 'en-US' }], executablePath, timeoutMs,
 }, async ({ page, bridge }) => {
-  const cart = new OneWinDryRunCart(page, { onWsFrame: ({ direction, host, path, data, allowed, at }) => {
+  const cart = new OneWinDryRunCart(page, { transportPolicy: { blockWorkers: !flag('allow-workers') }, onWsFrame: ({ direction, host, path, data, allowed, at }) => {
     ingestFrame(direction, host, data, at);
     if (typeof data !== 'string') return;
     const interesting = flag('all-frames') || direction === 'client_to_server'
