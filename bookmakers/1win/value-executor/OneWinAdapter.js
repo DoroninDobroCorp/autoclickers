@@ -319,97 +319,15 @@ class OneWinAdapter extends BettorAdapter {
             };
         }
 
-        // Live Placement Path
-        // This adapter has no verified order, no durable attempt store, no route guard and no
-        // receipt reconciliation. It is therefore never a live placement path unless an owner
-        // explicitly opts in twice (config + environment); the supported live executor is
-        // robin/scripts/onewin/browser_live_cart.mjs (OneWinLiveCart) fed by a verified order.
-        if (this.config.allowLegacyLivePlacement !== true || process.env.ONEWIN_AUTOMATION_LIVE_ENABLED !== 'true') {
-            const message = 'LEGACY_LIVE_PLACEMENT_DISABLED: use OneWinLiveCart with a verified order';
-            this.logger.log('⛔ [1win.placeBet] ' + message);
-            return { success: false, error: message, retryable: false };
-        }
-        try {
-            const { page } = await this._ensureContext();
-            const eventUrl = match?.url || (this.baseUrl + '/bets/match/' + matchId);
-
-            this.logger.log('🌐 Navigating to event URL: ' + eventUrl + '...');
-            await page.goto(eventUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await page.waitForTimeout(3000);
-
-            // Locate Betslip
-            const aside = page.locator('aside').filter({ hasText: /betslip|купон/i });
-            const slip = await aside.count() > 0 ? aside.first() : page.getByText('Betslip', { exact: true }).locator('xpath=ancestor::aside[1]');
-
-            // Clear existing slip items
-            await this._clearSlip(page, slip);
-
-            // Locate Market and Selection button
-            this.logger.log('🔍 Locating market "' + outcome.marketName + '", selection "' + outcome.selectionName + '"...');
-            const title = page.getByText(outcome.marketName, { exact: false }).filter({ visible: true }).first();
-            const group = title.locator('xpath=ancestor::div[.//button[.//span[starts-with(@class,"_cf_")]]][1]');
-            const button = group.getByRole('button').filter({ has: page.getByText(outcome.selectionName, { exact: false }) }).first();
-
-            await button.waitFor({ state: 'visible', timeout: 10000 });
-            const boardPriceText = await button.locator('span[class^="_cf_"]').innerText().catch(() => '');
-            const boardPrice = parseFloat(boardPriceText.replace(/[^\d.]/g, ''));
-
-            this.logger.log('📊 Board price: ' + boardPrice + ', expected: ' + targetOdds);
-            if (boardPrice && Math.abs(boardPrice - targetOdds) > this.maxOddsDiff) {
-                const errMsg = 'Odds drift on board: expected ' + targetOdds + ', got ' + boardPrice;
-                this.logger.log('⚠️ ' + errMsg + ' - aborting to protect bankroll!');
-                return { success: false, error: errMsg, retryable: false, oddsChanged: true };
-            }
-
-            // Click button to add to Betslip
-            this.logger.log('🖱️ Clicking outcome button...');
-            await button.click({ timeout: 5000 });
-            await page.waitForTimeout(1500);
-
-            // Enter stake amount
-            const amountInput = slip.locator('input[data-qa="amount"]:visible, input[type="number"]:visible').first();
-            await amountInput.click();
-            await amountInput.fill(String(stake));
-            await page.waitForTimeout(500);
-
-            // Pre-bet screenshot
-            const preShotPath = path.join(this.screenshotDir, '1win_pre_' + Date.now() + '.png');
-            await slip.screenshot({ path: preShotPath }).catch(() => {});
-
-            // Submit Bet
-            const submitBtn = slip.getByRole('button', { name: /place a bet|сделать ставку/i }).first();
-            if (!await submitBtn.isVisible() || !await submitBtn.isEnabled()) {
-                throw new Error('Submit button not available or disabled');
-            }
-
-            this.logger.log('🚀 Clicking submit button...');
-            await submitBtn.click();
-            await page.waitForTimeout(5000);
-
-            // Post-bet screenshot
-            const postShotPath = path.join(this.screenshotDir, '1win_post_' + Date.now() + '.png');
-            await page.screenshot({ path: postShotPath }).catch(() => {});
-
-            const balanceAfter = await this.getBalance();
-
-            return {
-                success: true,
-                ticketId: '1win_' + Date.now(),
-                odds: boardPrice || targetOdds,
-                stake,
-                balanceAfter,
-                screenshotPre: preShotPath,
-                screenshotPost: postShotPath,
-                placedAt: new Date().toISOString()
-            };
-        } catch (e) {
-            this.logger.log('❌ Error during 1win placeBet: ' + e.message);
-            return {
-                success: false,
-                error: e.message,
-                retryable: false
-            };
-        }
+        // Live placement is not a path of this adapter at all. It drove its own browser page with no
+        // verified order, no durable attempt store, no transport guard (HTTP default-deny, WebSocket
+        // frame policy, worker/service-worker/popup/redirect coverage) and no receipt
+        // reconciliation, so no configuration or environment switch can enable it: the only live
+        // executor is robin/scripts/onewin/browser_live_cart.mjs (OneWinLiveCart) fed by a verified
+        // order. `allowLegacyLivePlacement` is deliberately ignored.
+        const message = 'LEGACY_LIVE_PLACEMENT_DISABLED: use OneWinLiveCart with a verified order';
+        this.logger.log('⛔ [1win.placeBet] ' + message);
+        return { success: false, error: message, retryable: false };
     }
 
     async _clearSlip(page, slip) {

@@ -26,13 +26,16 @@ test('live placement is refused by default and never touches the browser', async
   assert.equal(ensureCalls(), 0);
 });
 
-test('the environment switch alone is not enough without the explicit legacy opt-in', async () => {
+test('neither the environment switch nor the former legacy opt-in can enable a live placement', async () => {
   process.env.ONEWIN_AUTOMATION_LIVE_ENABLED = 'true';
-  const { a, ensureCalls } = adapter();
-  const result = await a.placeBet({ ...call, dryRun: false });
-  assert.equal(result.success, false);
-  assert.match(String(result.error), /LEGACY_LIVE_PLACEMENT_DISABLED/);
-  assert.equal(ensureCalls(), 0);
+  for (const config of [{}, { allowLegacyLivePlacement: true }, { allowLegacyLivePlacement: true, dryRun: false, mode: 'live' }]) {
+    const { a, ensureCalls } = adapter(config);
+    const result = await a.placeBet({ ...call, dryRun: false });
+    assert.equal(result.success, false, JSON.stringify(config));
+    assert.match(String(result.error), /LEGACY_LIVE_PLACEMENT_DISABLED/);
+    assert.equal(result.retryable, false);
+    assert.equal(ensureCalls(), 0, 'the browser is never touched by this adapter for a live placement');
+  }
   delete process.env.ONEWIN_AUTOMATION_LIVE_ENABLED;
 });
 
