@@ -1385,11 +1385,37 @@ export class OneWinLiveCart {
         const carriedId = carriedSuccess?.betId;
         const carriesBet = carriedSuccess !== null && ((typeof carriedId === 'number' && Number.isFinite(carriedId) && carriedId > 0)
           || (typeof carriedId === 'string' && carriedId.trim().length > 0));
-        if (Array.isArray(body.errors) && body.errors.length > 0 && (carriesBet || carriedSuccess !== null)) {
+        const carriesInBandError = isPlainObject(body.result) && isPlainObject(body.result.error);
+        if ((Array.isArray(body.errors) && body.errors.length > 0 && (carriesBet || carriedSuccess !== null || carriesInBandError))
+          || (carriesInBandError && carriedSuccess !== null)) {
           // An error next to a (possible) bet is not a rejection: the bet may exist.
           result.status = 'INDETERMINATE';
           await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: 'MIXED_ERROR_AND_SUCCESS', receipt: body });
           throw new Error('PLACEMENT_INDETERMINATE:MIXED_ERROR_AND_SUCCESS');
+        }
+        // First-party client contract (betting bundle, make-bet-v2): the answer is {result} or
+        // {errors:[{code,meta}]}; inside result either {success:{...}} or {error:{code, selections?}}.
+        // An in-band rejection is a decided answer of the bookmaker, not an unknown outcome.
+        const inBandError = isPlainObject(body.result) && isPlainObject(body.result.error) ? body.result.error : null;
+        if (inBandError !== null && !(Array.isArray(body.errors) && body.errors.length > 0)) {
+          const outer = typeof inBandError.code === 'string' ? inBandError.code.trim() : '';
+          let codes = outer ? [outer] : [];
+          if (outer === 'selections_errors' && Array.isArray(inBandError.selections)) {
+            codes = inBandError.selections
+              .map((item) => (isPlainObject(item) && isPlainObject(item.error) && typeof item.error.code === 'string' ? item.error.code.trim() : ''));
+          }
+          const decided = codes.length > 0 && codes.every((code) => code && KNOWN_REJECTIONS.has(code));
+          if (decided) {
+            result.status = 'REJECTED';
+            result.rejection_code = codes[0];
+            result.rejection_meta = inBandError.meta || null;
+            await this.recordPostSend(result, idempotencyKey, 'REJECTED', { error: codes[0], receipt: body });
+            throw new Error(`BOOKMAKER_REJECTED:${codes[0]}`);
+          }
+          const code = outer || 'UNKNOWN_ERROR_CODE';
+          result.status = 'INDETERMINATE';
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: code, receipt: body });
+          throw new Error(`PLACEMENT_INDETERMINATE:${code}`);
         }
         if (Array.isArray(body.errors) && body.errors.length > 0) {
           const errObj = isPlainObject(body.errors[0]) ? body.errors[0] : {};

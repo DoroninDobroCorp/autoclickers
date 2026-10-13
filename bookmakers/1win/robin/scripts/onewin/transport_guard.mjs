@@ -20,11 +20,17 @@ export const TRANSPORT_GUARD_VERSION = 'onewin-transport-guard.v1';
 
 export const DEFAULT_BET_API_ORIGINS = Object.freeze(['https://api-gateway.top-parser.com']);
 
-// First-party endpoints that are POST by contract but only read (observed in the 1win SPA during
-// read-only account windows 2026-10-12/13: coupon limit and auto amount lookups).
+// First-party endpoints of the bet API origin that are POST by contract but only read. Observed in
+// the 1win SPA during read-only account windows: coupon limit lookups (2026-10-12/13) and the match /
+// highlight lists the event pages are built from (2026-10-13 discovery window: `matches/get-many`
+// 9x and `highlights/get-many` 2x on /betting, answers are match lists). Every other POST of the
+// client (monitoring/log-event, analytics, profile and bonus calls, auth/login refresh) is refused
+// by default; it is recorded in the cart result so an operator can extend this list on evidence.
 export const READ_ONLY_POST_PATHS = Object.freeze([
   '/bets/get-max-bet-amount',
   '/bets/get-auto-bet-amount-v2',
+  '/matches/get-many',
+  '/highlights/get-many',
 ]);
 
 // Paths that move money or change a bet. Refused for EVERY method: a GET is not read-only just
@@ -143,6 +149,7 @@ export class TransportGuard {
     isArmed = () => false,
     onBlocked = () => {},
     onAbortSignal = () => {},
+    onWsFrame = null,
   } = {}) {
     if (!page) throw new Error('TRANSPORT_GUARD_PAGE_REQUIRED');
     if (mode !== 'read_only' && mode !== 'live') throw new Error('TRANSPORT_GUARD_MODE_INVALID');
@@ -156,6 +163,8 @@ export class TransportGuard {
     this.isArmed = isArmed;
     this.onBlocked = onBlocked;
     this.onAbortSignal = onAbortSignal;
+    // Observation only (evidence capture): receives every frame in both directions, cannot alter it.
+    this.onWsFrame = typeof onWsFrame === 'function' ? onWsFrame : null;
     this.installed = false;
     this.needsFreshDocument = false;
     this.capabilities = { http_route: false, ws_route: false, init_script: false, scope: null };
@@ -371,8 +380,13 @@ export class TransportGuard {
     }
     this.stats.ws_opened += 1;
     const server = ws.connectToServer();
+    const observe = (direction, data, allowed) => {
+      if (!this.onWsFrame) return;
+      try { this.onWsFrame({ direction, host, path: new URL(url).pathname, data, allowed, at: Date.now() }); } catch { /* observer must not break the transport */ }
+    };
     ws.onMessage((message) => {
       const verdict = classifyWsFrame(message, { extraEvents: this.wsExtraEvents });
+      observe('client_to_server', message, verdict.ok);
       if (verdict.ok) {
         this.stats.ws_frames_allowed += 1;
         server.send(message);
@@ -383,7 +397,7 @@ export class TransportGuard {
       this.onBlocked({ kind: 'ws', path: new URL(url).pathname, host, reason: verdict.reason, money: false });
       if (this.isArmed()) this.onAbortSignal(`ws:${verdict.reason}`);
     });
-    server.onMessage((message) => ws.send(message));
+    server.onMessage((message) => { observe('server_to_client', message, true); ws.send(message); });
     ws.onClose((code, reason) => { try { server.close({ code, reason }); } catch { /* already closed */ } });
     server.onClose((code, reason) => { try { ws.close({ code, reason }); } catch { /* already closed */ } });
   }

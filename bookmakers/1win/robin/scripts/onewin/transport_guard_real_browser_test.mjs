@@ -39,6 +39,11 @@ test('HTTP classification: default deny for every non-read request that is not a
   assert.equal(c('GET', `${origin}/bets/get-base-settings`), 'read');
   assert.equal(c('POST', `${origin}/bets/get-max-bet-amount`), 'read_post');
   assert.equal(c('POST', `${origin}/bets/get-auto-bet-amount-v2`), 'read_post');
+  assert.equal(c('POST', `${origin}/matches/get-many`), 'read_post');
+  assert.equal(c('POST', `${origin}/highlights/get-many`), 'read_post');
+  for (const refused of ['/monitoring/log-event', '/auth/login', '/matches/delete-many', '/bets/get-max-bet-amount/extra']) {
+    assert.equal(c('POST', `${origin}${refused}`), 'blocked', refused);
+  }
   assert.equal(c('POST', 'https://evil.example/bets/get-max-bet-amount'), 'blocked', 'read endpoint on another origin');
   assert.equal(c('PUT', `${origin}/bets/get-max-bet-amount`), 'blocked');
   for (const url of [`${origin}/fortune-wheel/make-roll`, `${origin}/bets/api/v1/user/bets/ordinary`, `${origin}/bets/make-bet-v3`,
@@ -50,7 +55,7 @@ test('HTTP classification: default deny for every non-read request that is not a
   assert.equal(c('GET', 'https://1win.pro/assets/wager-icon.svg'), 'read', 'static assets keep loading');
   assert.equal(c('POST', `${origin}/bets/make-bet-v2`, true), 'submit_endpoint');
   assert.equal(c('POST', `${origin}/bets/make-bet-v2`, false), 'blocked', 'the read-only cart has no submit endpoint');
-  assert.ok(READ_ONLY_POST_PATHS.every((p) => p.startsWith('/bets/get-')));
+  assert.ok(READ_ONLY_POST_PATHS.every((p) => /^\/[a-z]+\/get-[a-z0-9-]+$/.test(p)), 'only get-* reads are allow-listed');
 });
 
 // ---------------------------------------------------------------- real browser

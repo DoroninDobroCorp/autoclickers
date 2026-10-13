@@ -21,8 +21,9 @@ export function eventIdFromUrl(value) {
 }
 
 export class OneWinDryRunCart {
-  constructor(page, { transportPolicy = {} } = {}) {
+  constructor(page, { transportPolicy = {}, onWsFrame = null } = {}) {
     this.page = page;
+    this._onWsFrame = onWsFrame;
     this.busy = false;
     this.blocked = [];            // money mutations the page tried (path list)
     this.blockedUnknown = [];     // other non-read transport the page tried: {kind, path, reason}
@@ -45,6 +46,7 @@ export class OneWinDryRunCart {
       betApiOrigins: this.transportPolicy.betApiOrigins,
       readOnlyPostPaths: this.transportPolicy.readOnlyPostPaths,
       blockWorkers: this.transportPolicy.blockWorkers,
+      onWsFrame: this._onWsFrame,
       onBlocked: ({ kind, path, reason, money }) => {
         if (money) this.blocked.push(path);
         else this.blockedUnknown.push({ kind, path, reason });

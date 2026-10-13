@@ -60,8 +60,12 @@ document.getElementById('pick').addEventListener('click', () => {
   document.getElementById('place').addEventListener('click', async () => {
     window.placeClicks++;
     const amount = Number(document.querySelector('input[data-qa="amount"]').value.replace(/[^0-9.]/g, ''));
-    const body = { currencyCode: 'USDT', amount, coupon: { amount, selections: [{ oddId: '${oddId}', cf: ${price},
-      matchId: '${eventId}', marketId: '${marketId}' }] }, wallet: { type: 'real' } };
+    // the request the first-party client builds (betting bundle, 2026-10-13): idempotencyKey is its own
+    // random UUID, selections carry oddId/cf/matchId only, no marketId
+    const body = { currencyCode: 'USDT', idempotencyKey: crypto.randomUUID(), amount,
+      meta: { autoBetAmount: undefined, isDirtyAmountField: true, sharedBetCode: undefined },
+      coupon: { amount, selections: [{ oddId: '${oddId}', cf: ${price}, matchId: '${eventId}' }] },
+      wallet: { type: 'real' } };
     try {
       const r = await fetch('${betOrigin}/bets/make-bet-v2', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       window.lastBetResponse = { status: r.status, body: await r.json().catch(() => null) };
@@ -95,6 +99,8 @@ export async function startStand({ tls = false } = {}) {
     money: [],       // accepted "bets" (the only thing a guard must never allow in a read-only run)
   };
   let betSeq = 0;
+  // test hook: (body) => JSON-able answer of make-bet-v2; null = the default accepted answer
+  const hooks = { makeBetAnswer: null };
   const isMoneyPath = (p) => /\/bets\/(?:make-bet|refund|cashout|sell)|\/fortune-wheel\/make-roll|\/bets\/api\/v1\/user\/bets\/ordinary/i.test(p);
 
   const pages = new Map();
@@ -149,6 +155,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
       if (isMoneyPath(url.pathname) && req.method !== 'GET') {
         betSeq += 1;
         log.money.push({ via: 'http', ...entry, id: betSeq });
+        if (hooks.makeBetAnswer) { res.end(JSON.stringify(hooks.makeBetAnswer(body, betSeq))); return; }
         res.end(JSON.stringify({ result: { success: { betId: `STAND-${betSeq}`, cf: body?.coupon?.selections?.[0]?.cf ?? 1.87,
           amount: body?.amount ?? 1, currencyCode: body?.currencyCode ?? 'USDT' } } }));
         return;
@@ -188,7 +195,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
   return {
-    port, log, pages,
+    port, log, pages, hooks,
     tls,
     siteOrigin: `${tls ? 'https' : 'http'}://${SITE_HOST}:${port}`,
     betOrigin: `${tls ? 'https' : 'http'}://${BET_HOST}:${port}`,
