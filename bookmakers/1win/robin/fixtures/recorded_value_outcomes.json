@@ -1,0 +1,1702 @@
+{
+ "cases": [
+  {
+   "name": "P1 T< 1",
+   "outcome": {
+    "donorOriginalKey": "P1 T< 1",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39949187",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6380",
+      "provider_selection_key": "10:89928420220149330:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "over",
+         "under"
+        ],
+        "id": "football.total.goals.h1.match:line:1",
+        "line": 1,
+        "market_family": "total",
+        "name": "total:h1:match:1",
+        "period": "h1",
+        "slot": "under",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 T< 1",
+      "line": 1,
+      "market_family": "total",
+      "period": "h1",
+      "side": "under",
+      "sport": "football",
+      "sportref_market_type": "football.total.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:49.971Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.48,
+     "source": "1win",
+     "source_event_key": "39949187",
+     "source_market": "P1 T< 1",
+     "source_ts": null
+    },
+    "margin_basis": "non_void_exposure",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:36:54.462274789Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 1.641,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 T> 1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:36:54.462274789Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.35,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 T< 1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 T< 1",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 T> 1",
+     "P1 T< 1"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:1:2026-10-12,27,59",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "over",
+         "under"
+        ],
+        "id": "football.total.goals.h1.match:line:1",
+        "line": 1,
+        "market_family": "total",
+        "name": "total:h1:match:1",
+        "period": "h1",
+        "slot": "under",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 T< 1",
+      "line": 1,
+      "market_family": "total",
+      "period": "h1",
+      "side": "under",
+      "sport": "football",
+      "sportref_market_type": "football.total.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:36:54.462274789Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.35,
+     "source": "BIA",
+     "source_event_key": "fb:1:2026-10-12,27,59",
+     "source_market": "P1 T< 1",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:31.268Z",
+      "initialized_at": "2026-10-12T17:36:54.461Z",
+      "method": "ordered_delta_pong",
+      "sequence": 7635,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 2.35
+    },
+    "score2": {
+     "raw": null,
+     "value": 2.48
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a11727-cb8f-7eeb-b05c-4d684a734c60",
+    "first": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.455Z",
+     "hasScore": false,
+     "homeName": "Coventry City FC",
+     "homeScore": 0,
+     "leagueName": "England Premier League",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "fb:1:2026-10-12,27,59",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "1",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:1",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:49.971Z",
+     "hasScore": false,
+     "homeName": "Coventry City",
+     "homeScore": 0,
+     "leagueName": "premier league",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "39949187",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "153",
+      "native_sport_id": "18",
+      "native_tournament_id": "919"
+     },
+     "source_competition_key": "sport:18:category:153:tournament:919",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-c3a91e19-fefe-4c82-a699-96d0e939d4f1"
+   }
+  },
+  {
+   "name": "P1 X",
+   "outcome": {
+    "donorOriginalKey": "P1 X",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39949187",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6263",
+      "provider_selection_key": "10:31045514720149324:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "P1 X",
+      "market_family": "result",
+      "period": "h1",
+      "side": "draw",
+      "sport": "football",
+      "sportref_market_type": "football.result.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:49.971Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.4,
+     "source": "1win",
+     "source_event_key": "39949187",
+     "source_market": "P1 X",
+     "source_ts": null
+    },
+    "margin_basis": "outcome_partition",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:38:19.363215923Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.95,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:38:19.363215923Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.492,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 X",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:38:19.363215923Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.67,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 2",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 X",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 1",
+     "P1 X",
+     "P1 2"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:1:2026-10-12,27,59",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "home",
+         "draw",
+         "away"
+        ],
+        "id": "football.result.goals.h1.match",
+        "market_family": "result",
+        "name": "result:h1:match",
+        "period": "h1",
+        "slot": "draw",
+        "target": "match",
+        "unit": "goals"
+       },
+       {
+        "expected_slots": [
+         "dc:12",
+         "result:draw"
+        ],
+        "id": "football:double_chance:12_vs_draw:goals:h1:match",
+        "market_family": "double_chance",
+        "name": "double_chance_12_vs_draw:h1:match",
+        "period": "h1",
+        "slot": "result:draw",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 X",
+      "market_family": "result",
+      "period": "h1",
+      "side": "draw",
+      "sport": "football",
+      "sportref_market_type": "football.result.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:38:19.363215923Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.492,
+     "source": "BIA",
+     "source_event_key": "fb:1:2026-10-12,27,59",
+     "source_market": "P1 X",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:31.268Z",
+      "initialized_at": "2026-10-12T17:36:54.461Z",
+      "method": "ordered_delta_pong",
+      "sequence": 7635,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 2.492
+    },
+    "score2": {
+     "raw": null,
+     "value": 2.4
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a11727-cb8f-7eeb-b05c-4d684a734c60",
+    "first": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.455Z",
+     "hasScore": false,
+     "homeName": "Coventry City FC",
+     "homeScore": 0,
+     "leagueName": "England Premier League",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "fb:1:2026-10-12,27,59",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "1",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:1",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:49.971Z",
+     "hasScore": false,
+     "homeName": "Coventry City",
+     "homeScore": 0,
+     "leagueName": "premier league",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "39949187",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "153",
+      "native_sport_id": "18",
+      "native_tournament_id": "919"
+     },
+     "source_competition_key": "sport:18:category:153:tournament:919",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-c3a91e19-fefe-4c82-a699-96d0e939d4f1"
+   }
+  },
+  {
+   "name": "X",
+   "outcome": {
+    "donorOriginalKey": "X",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39949187",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6257",
+      "provider_selection_key": "10:103210765120149330:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "X",
+      "market_family": "result",
+      "period": "ft",
+      "side": "draw",
+      "sport": "football",
+      "sportref_market_type": "football.result.goals.ft.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:49.971Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.64,
+     "source": "1win",
+     "source_event_key": "39949187",
+     "source_market": "X",
+     "source_ts": null
+    },
+    "margin_basis": "outcome_partition",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:37:00.607993364Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.651,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.454Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:37:00.607993364Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.8,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "X",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.454Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:37:00.607993364Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.119,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "2",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.454Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb:2026-10-12,27,59:event"
+      }
+     }
+    ],
+    "marketType": -1,
+    "outcome": "X",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "1",
+     "X",
+     "2"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:1:2026-10-12,27,59",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "home",
+         "draw",
+         "away"
+        ],
+        "id": "football.result.goals.ft.match",
+        "market_family": "result",
+        "name": "result:ft:match",
+        "period": "ft",
+        "slot": "draw",
+        "target": "match",
+        "unit": "goals"
+       },
+       {
+        "expected_slots": [
+         "dc:12",
+         "result:draw"
+        ],
+        "id": "football:double_chance:12_vs_draw:goals:ft:match",
+        "market_family": "double_chance",
+        "name": "double_chance_12_vs_draw:ft:match",
+        "period": "ft",
+        "slot": "result:draw",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "X",
+      "market_family": "result",
+      "period": "ft",
+      "side": "draw",
+      "sport": "football",
+      "sportref_market_type": "football.result.goals.ft.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:00.607993364Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.8,
+     "source": "BIA",
+     "source_event_key": "fb:1:2026-10-12,27,59",
+     "source_market": "X",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:31.268Z",
+      "initialized_at": "2026-10-12T17:36:54.454Z",
+      "method": "ordered_delta_pong",
+      "sequence": 7635,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "1:fb:2026-10-12,27,59:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 3.8
+    },
+    "score2": {
+     "raw": null,
+     "value": 3.64
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a11727-cb8f-7eeb-b05c-4d684a734c60",
+    "first": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.455Z",
+     "hasScore": false,
+     "homeName": "Coventry City FC",
+     "homeScore": 0,
+     "leagueName": "England Premier League",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "fb:1:2026-10-12,27,59",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "1",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:1",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:49.971Z",
+     "hasScore": false,
+     "homeName": "Coventry City",
+     "homeScore": 0,
+     "leagueName": "premier league",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "39949187",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "153",
+      "native_sport_id": "18",
+      "native_tournament_id": "919"
+     },
+     "source_competition_key": "sport:18:category:153:tournament:919",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-c3a91e19-fefe-4c82-a699-96d0e939d4f1"
+   }
+  },
+  {
+   "name": "P1 T> 1",
+   "outcome": {
+    "donorOriginalKey": "P1 T> 1",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39949187",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6380",
+      "provider_selection_key": "10:73755459420149330:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "over",
+         "under"
+        ],
+        "id": "football.total.goals.h1.match:line:1",
+        "line": 1,
+        "market_family": "total",
+        "name": "total:h1:match:1",
+        "period": "h1",
+        "slot": "over",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 T> 1",
+      "line": 1,
+      "market_family": "total",
+      "period": "h1",
+      "side": "over",
+      "sport": "football",
+      "sportref_market_type": "football.total.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:49.971Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 1.5,
+     "source": "1win",
+     "source_event_key": "39949187",
+     "source_market": "P1 T> 1",
+     "source_ts": null
+    },
+    "margin_basis": "non_void_exposure",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:36:54.462274789Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 1.641,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 T> 1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:36:54.462274789Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.35,
+      "source": "BIA",
+      "source_event_key": "fb:1:2026-10-12,27,59",
+      "source_market": "P1 T< 1",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:31.268Z",
+       "initialized_at": "2026-10-12T17:36:54.461Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7635,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 T> 1",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 T> 1",
+     "P1 T< 1"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:1:2026-10-12,27,59",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "over",
+         "under"
+        ],
+        "id": "football.total.goals.h1.match:line:1",
+        "line": 1,
+        "market_family": "total",
+        "name": "total:h1:match:1",
+        "period": "h1",
+        "slot": "over",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 T> 1",
+      "line": 1,
+      "market_family": "total",
+      "period": "h1",
+      "side": "over",
+      "sport": "football",
+      "sportref_market_type": "football.total.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:36:54.462274789Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 1.641,
+     "source": "BIA",
+     "source_event_key": "fb:1:2026-10-12,27,59",
+     "source_market": "P1 T> 1",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:31.268Z",
+      "initialized_at": "2026-10-12T17:36:54.461Z",
+      "method": "ordered_delta_pong",
+      "sequence": 7635,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "1:fb_ht:2026-10-12,27,59:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 1.641
+    },
+    "score2": {
+     "raw": null,
+     "value": 1.5
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a11727-cb8f-7eeb-b05c-4d684a734c60",
+    "first": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.455Z",
+     "hasScore": false,
+     "homeName": "Coventry City FC",
+     "homeScore": 0,
+     "leagueName": "England Premier League",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "fb:1:2026-10-12,27,59",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "1",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:1",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Newcastle United",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:49.971Z",
+     "hasScore": false,
+     "homeName": "Coventry City",
+     "homeScore": 0,
+     "leagueName": "premier league",
+     "matchDate": "2026-10-12T19:00:00Z",
+     "matchId": "39949187",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "153",
+      "native_sport_id": "18",
+      "native_tournament_id": "919"
+     },
+     "source_competition_key": "sport:18:category:153:tournament:919",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-c3a91e19-fefe-4c82-a699-96d0e939d4f1"
+   }
+  },
+  {
+   "name": "P1 DC X2",
+   "outcome": {
+    "donorOriginalKey": "P1 DC X2",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39869466",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6284",
+      "provider_selection_key": "10:6596389520126217:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "P1 DC X2",
+      "market_family": "double_chance",
+      "period": "h1",
+      "side": "x2",
+      "sport": "football",
+      "sportref_market_type": "football.double_chance.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:38:14.248Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 1.37,
+     "source": "1win",
+     "source_event_key": "39869466",
+     "source_market": "P1 DC X2",
+     "source_ts": null
+    },
+    "margin_basis": "outcome_partition",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:36:59.090368509Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.04,
+      "source": "BIA",
+      "source_event_key": "fb:28:2026-10-13,300,154",
+      "source_market": "P1 H1 -0.5",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:27.052Z",
+       "initialized_at": "2026-10-12T17:36:59.089Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7293,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "28:fb_ht:2026-10-13,300,154:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:36:59.090368509Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 1.4,
+      "source": "BIA",
+      "source_event_key": "fb:28:2026-10-13,300,154",
+      "source_market": "P1 H2 0.5",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:27.052Z",
+       "initialized_at": "2026-10-12T17:36:59.089Z",
+       "method": "ordered_delta_pong",
+       "sequence": 7293,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "28:fb_ht:2026-10-13,300,154:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 DC X2",
+    "pinnacleSources": [
+     "P1 H2 0.5",
+     "P1 DC X2"
+    ],
+    "pinnacleStdOdds": 1.4,
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 H1 -0.5",
+     "P1 H2 0.5"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:28:2026-10-13,300,154",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "home",
+         "away"
+        ],
+        "id": "football.handicap.goals.h1.match:home_line:-0.5",
+        "line": -0.5,
+        "market_family": "handicap",
+        "name": "handicap:h1:match:-0.5/0.5",
+        "period": "h1",
+        "slot": "away",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 H2 0.5",
+      "line": 0.5,
+      "market_family": "handicap",
+      "period": "h1",
+      "side": "away",
+      "sport": "football",
+      "sportref_market_type": "football.handicap.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:36:59.090368509Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 1.4,
+     "source": "BIA",
+     "source_event_key": "fb:28:2026-10-13,300,154",
+     "source_market": "P1 H2 0.5",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:27.052Z",
+      "initialized_at": "2026-10-12T17:36:59.089Z",
+      "method": "ordered_delta_pong",
+      "sequence": 7293,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "28:fb_ht:2026-10-13,300,154:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 1.4
+    },
+    "score2": {
+     "raw": null,
+     "value": 1.37
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a11727-e5a0-7d50-94cb-722e19c6a4ad",
+    "first": {
+     "awayName": "Sporting CP",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:57.809Z",
+     "hasScore": false,
+     "homeName": "Racing Club de Lens",
+     "homeScore": 0,
+     "leagueName": "UEFA Champions League",
+     "matchDate": "2026-10-13T16:45:00Z",
+     "matchId": "fb:28:2026-10-13,300,154",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "28",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:28",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Sporting CP",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:38:14.248Z",
+     "hasScore": false,
+     "homeName": "Lens",
+     "homeScore": 0,
+     "leagueName": "uefa champions league",
+     "matchDate": "2026-10-13T16:45:00Z",
+     "matchId": "39869466",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "1662",
+      "native_sport_id": "18",
+      "native_tournament_id": "39437"
+     },
+     "source_competition_key": "sport:18:category:1662:tournament:39437",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-d7dc54ad-53ae-4e95-afc3-81d2f8eda582"
+   }
+  },
+  {
+   "name": "FTS Away",
+   "outcome": {
+    "donorOriginalKey": "FTS Away",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39405595",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "70213",
+      "provider_selection_key": "10:102326969219984320:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "FTS Away",
+      "market_family": "unknown",
+      "period": "ft",
+      "side": "FTS Away",
+      "sport": "football",
+      "sportref_market_type": "",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:43.458Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.75,
+     "source": "1win",
+     "source_event_key": "39405595",
+     "source_market": "FTS Away",
+     "source_ts": null
+    },
+    "margin_basis": "outcome_partition",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:36:54.825538873Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.45,
+      "source": "BIA",
+      "source_event_key": "fb:10003860:2026-10-15,931,30124",
+      "source_market": "FTS Away",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:12.502Z",
+       "initialized_at": "2026-10-12T17:36:54.821Z",
+       "method": "ordered_delta_pong",
+       "sequence": 6132,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "10003860:fb:2026-10-15,931,30124:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "FTS Away",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "FTS Away"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:10003860:2026-10-15,931,30124",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "FTS Away",
+      "market_family": "unknown",
+      "period": "ft",
+      "side": "FTS Away",
+      "sport": "football",
+      "sportref_market_type": "",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:36:54.825538873Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.45,
+     "source": "BIA",
+     "source_event_key": "fb:10003860:2026-10-15,931,30124",
+     "source_market": "FTS Away",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:12.502Z",
+      "initialized_at": "2026-10-12T17:36:54.821Z",
+      "method": "ordered_delta_pong",
+      "sequence": 6132,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "10003860:fb:2026-10-15,931,30124:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 3.45
+    },
+    "score2": {
+     "raw": null,
+     "value": 3.75
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a116e4-f550-7910-85e6-1de12809e155",
+    "first": {
+     "awayName": "Borac Banja Luka",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.825Z",
+     "hasScore": false,
+     "homeName": "Panathinaikos AO",
+     "homeScore": 0,
+     "leagueName": "UEFA Conference League",
+     "matchDate": "2026-10-15T16:45:00Z",
+     "matchId": "fb:10003860:2026-10-15,931,30124",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "10003860",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:10003860",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Borac Banja Luka",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:43.458Z",
+     "hasScore": false,
+     "homeName": "Panathinaikos",
+     "homeScore": 0,
+     "leagueName": "uefa conference league",
+     "matchDate": "2026-10-15T16:45:00Z",
+     "matchId": "39405595",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "1662",
+      "native_sport_id": "18",
+      "native_tournament_id": "39439"
+     },
+     "source_competition_key": "sport:18:category:1662:tournament:39439",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-2181ae0e-bfd0-4df4-bb98-73c7823d42c7"
+   }
+  },
+  {
+   "name": "P1 IT2> 0.5",
+   "outcome": {
+    "donorOriginalKey": "P1 IT2> 0.5",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "39405595",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "153204",
+      "provider_selection_key": "10:113598931519984320:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "P1 IT2> 0.5",
+      "line": 0.5,
+      "market_family": "team_total",
+      "period": "h1",
+      "side": "over",
+      "sport": "football",
+      "sportref_market_type": "football.team_total.goals.h1.away",
+      "target": "away",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:43.458Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.47,
+     "source": "1win",
+     "source_event_key": "39405595",
+     "source_market": "P1 IT2> 0.5",
+     "source_ts": null
+    },
+    "margin_basis": "outcome_partition",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:37:48.535132884Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 3.73,
+      "source": "BIA",
+      "source_event_key": "fb:10003860:2026-10-15,931,30124",
+      "source_market": "P1 IT2> 0.5",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:12.502Z",
+       "initialized_at": "2026-10-12T17:36:55.821Z",
+       "method": "ordered_delta_pong",
+       "sequence": 6132,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "10003860:fb_ht:2026-10-15,931,30124:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:37:48.535132884Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 1.31,
+      "source": "BIA",
+      "source_event_key": "fb:10003860:2026-10-15,931,30124",
+      "source_market": "P1 IT2< 0.5",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:12.502Z",
+       "initialized_at": "2026-10-12T17:36:55.821Z",
+       "method": "ordered_delta_pong",
+       "sequence": 6132,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "10003860:fb_ht:2026-10-15,931,30124:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 IT2> 0.5",
+    "pinnacleSources": [
+     "P1 IT2> 0.5",
+     "P1 ATS Yes"
+    ],
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 IT2> 0.5",
+     "P1 IT2< 0.5"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:10003860:2026-10-15,931,30124",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "over",
+         "under"
+        ],
+        "id": "football.team_total.goals.h1.away:line:0.5",
+        "line": 0.5,
+        "market_family": "team_total",
+        "name": "team_total:h1:away:0.5",
+        "period": "h1",
+        "slot": "over",
+        "target": "away",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 IT2> 0.5",
+      "line": 0.5,
+      "market_family": "team_total",
+      "period": "h1",
+      "side": "over",
+      "sport": "football",
+      "sportref_market_type": "football.team_total.goals.h1.away",
+      "target": "away",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:48.535132884Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 3.73,
+     "source": "BIA",
+     "source_event_key": "fb:10003860:2026-10-15,931,30124",
+     "source_market": "P1 IT2> 0.5",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:12.502Z",
+      "initialized_at": "2026-10-12T17:36:55.821Z",
+      "method": "ordered_delta_pong",
+      "sequence": 6132,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "10003860:fb_ht:2026-10-15,931,30124:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 3.73
+    },
+    "score2": {
+     "raw": null,
+     "value": 3.47
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a116e4-f550-7910-85e6-1de12809e155",
+    "first": {
+     "awayName": "Borac Banja Luka",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:54.825Z",
+     "hasScore": false,
+     "homeName": "Panathinaikos AO",
+     "homeScore": 0,
+     "leagueName": "UEFA Conference League",
+     "matchDate": "2026-10-15T16:45:00Z",
+     "matchId": "fb:10003860:2026-10-15,931,30124",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "10003860",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:10003860",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Borac Banja Luka",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:43.458Z",
+     "hasScore": false,
+     "homeName": "Panathinaikos",
+     "homeScore": 0,
+     "leagueName": "uefa conference league",
+     "matchDate": "2026-10-15T16:45:00Z",
+     "matchId": "39405595",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "1662",
+      "native_sport_id": "18",
+      "native_tournament_id": "39439"
+     },
+     "source_competition_key": "sport:18:category:1662:tournament:39439",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-2181ae0e-bfd0-4df4-bb98-73c7823d42c7"
+   }
+  },
+  {
+   "name": "P1 H1 -0.25",
+   "outcome": {
+    "donorOriginalKey": "P1 H1 -0.25",
+    "donor_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "40123713",
+      "provider_id_namespace": "top-parser:1win",
+      "provider_market_key": "6345",
+      "provider_selection_key": "10:107538269020203860:0",
+      "role": "executable_candidate",
+      "verified": false
+     },
+     "market_axes": {
+      "key": "P1 H1 -0.25",
+      "line": -0.25,
+      "market_family": "handicap",
+      "period": "h1",
+      "side": "home",
+      "sport": "football",
+      "sportref_market_type": "football.handicap.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:37:43.21Z",
+     "observed_at_origin": "source",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.48,
+     "source": "1win",
+     "source_event_key": "40123713",
+     "source_market": "P1 H1 -0.25",
+     "source_ts": null
+    },
+    "margin_basis": "non_void_exposure",
+    "margin_quotes": [
+     {
+      "observed_at": "2026-10-12T17:36:56.531063556Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 2.53,
+      "source": "BIA",
+      "source_event_key": "fb:19:2026-10-12,294,242",
+      "source_market": "P1 H1 -0.25",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:12.502Z",
+       "initialized_at": "2026-10-12T17:36:56.53Z",
+       "method": "ordered_delta_pong",
+       "sequence": 6132,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "19:fb_ht:2026-10-12,294,242:event"
+      }
+     },
+     {
+      "observed_at": "2026-10-12T17:36:56.531063556Z",
+      "observed_at_origin": "aggregator",
+      "observed_at_semantics": "provider_confirmation",
+      "odds": 1.57,
+      "source": "BIA",
+      "source_event_key": "fb:19:2026-10-12,294,242",
+      "source_market": "P1 H2 0.25",
+      "source_ts": null,
+      "state_confirmation": {
+       "confirmed_at": "2026-10-12T17:38:12.502Z",
+       "initialized_at": "2026-10-12T17:36:56.53Z",
+       "method": "ordered_delta_pong",
+       "sequence": 6132,
+       "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+       "subscription_id": "19:fb_ht:2026-10-12,294,242:event"
+      }
+     }
+    ],
+    "marketType": 0,
+    "outcome": "P1 H1 -0.25",
+    "quote_evidence_version": "quote-evidence.v1",
+    "reference_evidence_keys": [
+     "P1 H1 -0.25",
+     "P1 H2 0.25"
+    ],
+    "reference_quote": {
+     "execution": {
+      "commission": null,
+      "currency": null,
+      "max_stake": null,
+      "native_event_id": null,
+      "native_market_id": null,
+      "native_selection_id": null,
+      "provider_event_key": "fb:19:2026-10-12,294,242",
+      "provider_id_namespace": "aggregator:BIA",
+      "provider_market_key": null,
+      "provider_selection_key": null,
+      "role": "reference",
+      "verified": false
+     },
+     "market_axes": {
+      "arb_groups": [
+       {
+        "expected_slots": [
+         "home",
+         "away"
+        ],
+        "id": "football.handicap.goals.h1.match:home_line:-0.25",
+        "line": -0.25,
+        "market_family": "handicap",
+        "name": "handicap:h1:match:-0.25/0.25",
+        "period": "h1",
+        "slot": "home",
+        "target": "match",
+        "unit": "goals"
+       }
+      ],
+      "key": "P1 H1 -0.25",
+      "line": -0.25,
+      "market_family": "handicap",
+      "period": "h1",
+      "side": "home",
+      "sport": "football",
+      "sportref_market_type": "football.handicap.goals.h1.match",
+      "target": "match",
+      "unit": "goals"
+     },
+     "observed_at": "2026-10-12T17:36:56.531063556Z",
+     "observed_at_origin": "aggregator",
+     "observed_at_semantics": "provider_confirmation",
+     "odds": 2.53,
+     "source": "BIA",
+     "source_event_key": "fb:19:2026-10-12,294,242",
+     "source_market": "P1 H1 -0.25",
+     "source_ts": null,
+     "state_confirmation": {
+      "confirmed_at": "2026-10-12T17:38:12.502Z",
+      "initialized_at": "2026-10-12T17:36:56.53Z",
+      "method": "ordered_delta_pong",
+      "sequence": 6132,
+      "session_id": "cc825fe8a1f54e27adb600e7f9ced625",
+      "subscription_id": "19:fb_ht:2026-10-12,294,242:event"
+     }
+    },
+    "roi_basis": "non_void_stake.v1",
+    "score1": {
+     "raw": null,
+     "value": 2.53
+    },
+    "score2": {
+     "raw": null,
+     "value": 2.48
+    }
+   },
+   "pair": {
+    "createdAt": "2026-10-12T17:38:32.289655716Z",
+    "dataAge": 0,
+    "event_id": "01a116e5-258b-754b-9f77-fd72f4e5d183",
+    "first": {
+     "awayName": "Udinese",
+     "awayScore": 0,
+     "bookmaker": "BIA",
+     "createdAt": "2026-10-12T17:36:56.526Z",
+     "hasScore": false,
+     "homeName": "Torino",
+     "homeScore": 0,
+     "leagueName": "Italy Serie A",
+     "matchDate": "2026-10-12T18:45:00Z",
+     "matchId": "fb:19:2026-10-12,294,242",
+     "raw": null,
+     "source_competition_context": {
+      "native_competition_id": "19",
+      "native_sport_id": "fb"
+     },
+     "source_competition_key": "sport:fb:competition:19",
+     "source_sport": "Soccer"
+    },
+    "isLive": false,
+    "second": {
+     "awayName": "Udinese",
+     "awayScore": 0,
+     "bookmaker": "1win",
+     "createdAt": "2026-10-12T17:37:43.21Z",
+     "hasScore": false,
+     "homeName": "Torino",
+     "homeScore": 0,
+     "leagueName": "serie a",
+     "matchDate": "2026-10-12T18:45:00Z",
+     "matchId": "40123713",
+     "raw": null,
+     "source_competition_context": {
+      "native_category_id": "144",
+      "native_sport_id": "18",
+      "native_tournament_id": "1000"
+     },
+     "source_competition_key": "sport:18:category:144:tournament:1000",
+     "source_sport": "Soccer"
+    },
+    "sportName": "Soccer",
+    "trace_id": "orphan-e499c314-81ae-417e-a462-13e9464abdb5"
+   }
+  }
+ ],
+ "provenance": {
+  "frame_computed_at": "2026-10-12T17:38:32.289655716Z",
+  "kind": "recorded_value_calculator_frame_excerpt",
+  "runtime": "platform 87a9baa-era frame, soccer only (historical shape evidence)",
+  "selection": "frame.data[*].outcome[*] filtered by outcome key; quotes, axes, clocks and state proofs are verbatim",
+  "source_file": ".overnight-20261012-bia-1win/evidence/acceptance-value-calculator.json",
+  "source_sha256": "6587d21fa382a755a9484792f178996eed1ce846a4d92c7bbc433feb8e4d6755",
+  "stripped_fields": [
+   "margin",
+   "margin_estimated",
+   "margin_reason",
+   "margin_source_market",
+   "outcomeAge",
+   "pinnacleBestSource",
+   "roi"
+  ],
+  "stripped_reason": "private value/ROI model outputs are not shared; they are not read by the executor path"
+ },
+ "replay_now_iso": "2026-10-12T17:38:32.289655716Z"
+}

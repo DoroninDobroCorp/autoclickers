@@ -1,0 +1,1463 @@
+{
+ "provenance": {
+  "generated_at": "2026-10-13",
+  "generator": "backend/analyzer/cmd/axesdump (throwaway; calls service.ParseCanonicalOutcomeAxes and json.Marshal)",
+  "kind": "platform_canonical_outcome_axes_serialised_by_go",
+  "platform_repo": "serverforvovka:/tmp/platform-bia-onewin-final-quality-20261013",
+  "platform_sha": "f8d56d4bf467e20389484e3b1f3aaada73c5f881",
+  "registry": "embedded sportref_market_types.yaml seed snapshot (no Sportref DB): empty sportref_market_type means the seed registry has no binding"
+ },
+ "rows": [
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "football.total.goals.ft.match:line:2.5",
+      "line": 2.5,
+      "market_family": "total",
+      "name": "total:ft:match:2.5",
+      "period": "ft",
+      "slot": "over",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "T> 2.5",
+    "line": 2.5,
+    "market_family": "total",
+    "period": "ft",
+    "side": "over",
+    "sport": "football",
+    "sportref_market_type": "football.total.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "T> 2.5",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "football.total.goals.ft.match:line:2.5",
+      "line": 2.5,
+      "market_family": "total",
+      "name": "total:ft:match:2.5",
+      "period": "ft",
+      "slot": "under",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "T< 2.5",
+    "line": 2.5,
+    "market_family": "total",
+    "period": "ft",
+    "side": "under",
+    "sport": "football",
+    "sportref_market_type": "football.total.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "T< 2.5",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "football.handicap.goals.ft.match:home_line:-1.5",
+      "line": -1.5,
+      "market_family": "handicap",
+      "name": "handicap:ft:match:-1.5/1.5",
+      "period": "ft",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "H1 -1.5",
+    "line": -1.5,
+    "market_family": "handicap",
+    "period": "ft",
+    "side": "home",
+    "sport": "football",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "H1 -1.5",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "football.handicap.goals.ft.match:home_line:-0.25",
+      "line": -0.25,
+      "market_family": "handicap",
+      "name": "handicap:ft:match:-0.25/0.25",
+      "period": "ft",
+      "slot": "away",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "H2 0.25",
+    "line": 0.25,
+    "market_family": "handicap",
+    "period": "ft",
+    "side": "away",
+    "sport": "football",
+    "sportref_market_type": "football.handicap.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "H2 0.25",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "football.team_total.goals.ft.home:line:1.5",
+      "line": 1.5,
+      "market_family": "team_total",
+      "name": "team_total:ft:home:1.5",
+      "period": "ft",
+      "slot": "over",
+      "target": "home",
+      "unit": "goals"
+     }
+    ],
+    "key": "IT1> 1.5",
+    "line": 1.5,
+    "market_family": "team_total",
+    "period": "ft",
+    "side": "over",
+    "sport": "football",
+    "sportref_market_type": "football.team_total.goals.ft.home",
+    "target": "home",
+    "unit": "goals"
+   },
+   "key": "IT1> 1.5",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "draw",
+       "away"
+      ],
+      "id": "football.result.goals.ft.match",
+      "market_family": "result",
+      "name": "result:ft:match",
+      "period": "ft",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     },
+     {
+      "expected_slots": [
+       "dc:x2",
+       "result:home"
+      ],
+      "id": "football:double_chance:x2_vs_home:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_x2_vs_home:ft:match",
+      "period": "ft",
+      "slot": "result:home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "1",
+    "market_family": "result",
+    "period": "ft",
+    "side": "home",
+    "sport": "football",
+    "sportref_market_type": "football.result.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "1",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "draw",
+       "away"
+      ],
+      "id": "football.result.goals.ft.match",
+      "market_family": "result",
+      "name": "result:ft:match",
+      "period": "ft",
+      "slot": "draw",
+      "target": "match",
+      "unit": "goals"
+     },
+     {
+      "expected_slots": [
+       "dc:12",
+       "result:draw"
+      ],
+      "id": "football:double_chance:12_vs_draw:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_12_vs_draw:ft:match",
+      "period": "ft",
+      "slot": "result:draw",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "X",
+    "market_family": "result",
+    "period": "ft",
+    "side": "draw",
+    "sport": "football",
+    "sportref_market_type": "football.result.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "X",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "dc:1x",
+       "result:away"
+      ],
+      "id": "football:double_chance:1x_vs_away:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_1x_vs_away:ft:match",
+      "period": "ft",
+      "slot": "dc:1x",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "DC 1x",
+    "market_family": "double_chance",
+    "period": "ft",
+    "side": "1x",
+    "sport": "football",
+    "sportref_market_type": "football.double_chance.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "DC 1x",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "yes",
+       "no"
+      ],
+      "id": "football.btts.goals.ft.match",
+      "market_family": "btts",
+      "name": "btts:ft:match",
+      "period": "ft",
+      "slot": "yes",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "BTTS Yes",
+    "market_family": "btts",
+    "period": "ft",
+    "side": "yes",
+    "sport": "football",
+    "sportref_market_type": "football.btts.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "BTTS Yes",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "football.total.goals.h1.match:line:0.5",
+      "line": 0.5,
+      "market_family": "total",
+      "name": "total:h1:match:0.5",
+      "period": "h1",
+      "slot": "over",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "P1 T> 0.5",
+    "line": 0.5,
+    "market_family": "total",
+    "period": "h1",
+    "side": "over",
+    "sport": "football",
+    "sportref_market_type": "football.total.goals.h1.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "P1 T> 0.5",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "key": "FTS Away",
+    "market_family": "first_to",
+    "period": "ft",
+    "side": "away",
+    "sport": "football",
+    "sportref_market_type": "football.first_to.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "FTS Away",
+   "sport_name": "Soccer"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "draw",
+       "away"
+      ],
+      "id": "ice_hockey.result.goals.ft.match",
+      "market_family": "result",
+      "name": "result:ft:match",
+      "period": "ft",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     },
+     {
+      "expected_slots": [
+       "dc:x2",
+       "result:home"
+      ],
+      "id": "ice_hockey:double_chance:x2_vs_home:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_x2_vs_home:ft:match",
+      "period": "ft",
+      "slot": "result:home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "REG 1",
+    "market_family": "result",
+    "period": "ft",
+    "side": "home",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "REG 1",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "draw",
+       "away"
+      ],
+      "id": "ice_hockey.result.goals.ft.match",
+      "market_family": "result",
+      "name": "result:ft:match",
+      "period": "ft",
+      "slot": "draw",
+      "target": "match",
+      "unit": "goals"
+     },
+     {
+      "expected_slots": [
+       "dc:12",
+       "result:draw"
+      ],
+      "id": "ice_hockey:double_chance:12_vs_draw:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_12_vs_draw:ft:match",
+      "period": "ft",
+      "slot": "result:draw",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "REG X",
+    "market_family": "result",
+    "period": "ft",
+    "side": "draw",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "REG X",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "draw",
+       "away"
+      ],
+      "id": "ice_hockey.result.goals.ft.match",
+      "market_family": "result",
+      "name": "result:ft:match",
+      "period": "ft",
+      "slot": "away",
+      "target": "match",
+      "unit": "goals"
+     },
+     {
+      "expected_slots": [
+       "dc:1x",
+       "result:away"
+      ],
+      "id": "ice_hockey:double_chance:1x_vs_away:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_1x_vs_away:ft:match",
+      "period": "ft",
+      "slot": "result:away",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "REG 2",
+    "market_family": "result",
+    "period": "ft",
+    "side": "away",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.result.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "REG 2",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "ice_hockey.moneyline.goals.ft_ot_pen.match",
+      "market_family": "moneyline",
+      "name": "moneyline:ft_ot_pen:match",
+      "period": "ft_ot_pen",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "ML 1",
+    "market_family": "moneyline",
+    "period": "ft_ot_pen",
+    "side": "home",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.moneyline.goals.ft_ot_pen.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "ML 1",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "ice_hockey.moneyline.goals.ft_ot_pen.match",
+      "market_family": "moneyline",
+      "name": "moneyline:ft_ot_pen:match",
+      "period": "ft_ot_pen",
+      "slot": "away",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "ML 2",
+    "market_family": "moneyline",
+    "period": "ft_ot_pen",
+    "side": "away",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.moneyline.goals.ft_ot_pen.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "ML 2",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "ice_hockey.dnb.goals.ft.match",
+      "market_family": "dnb",
+      "name": "dnb:ft:match",
+      "period": "ft",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "REG DNB 1",
+    "market_family": "dnb",
+    "period": "ft",
+    "side": "home",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.dnb.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "REG DNB 1",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "ice_hockey.dnb.goals.ft.match",
+      "market_family": "dnb",
+      "name": "dnb:ft:match",
+      "period": "ft",
+      "slot": "home",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "DNB 1",
+    "market_family": "dnb",
+    "period": "ft",
+    "side": "home",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.dnb.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "DNB 1",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "dc:1x",
+       "result:away"
+      ],
+      "id": "ice_hockey:double_chance:1x_vs_away:goals:ft:match",
+      "market_family": "double_chance",
+      "name": "double_chance_1x_vs_away:ft:match",
+      "period": "ft",
+      "slot": "dc:1x",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "DC 1x",
+    "market_family": "double_chance",
+    "period": "ft",
+    "side": "1x",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.double_chance.goals.ft.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "DC 1x",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "key": "T> 5.5",
+    "line": 5.5,
+    "market_family": "total",
+    "period": "ft_ot_pen",
+    "side": "over",
+    "sport": "ice_hockey",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "T> 5.5",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "key": "T< 5.5",
+    "line": 5.5,
+    "market_family": "total",
+    "period": "ft_ot_pen",
+    "side": "under",
+    "sport": "ice_hockey",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "T< 5.5",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "key": "H1 -1.5",
+    "line": -1.5,
+    "market_family": "handicap",
+    "period": "ft_ot_pen",
+    "side": "home",
+    "sport": "ice_hockey",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "H1 -1.5",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "key": "IT1> 2.5",
+    "line": 2.5,
+    "market_family": "team_total",
+    "period": "ft_ot_pen",
+    "side": "over",
+    "sport": "ice_hockey",
+    "sportref_market_type": "",
+    "target": "home",
+    "unit": "goals"
+   },
+   "key": "IT1> 2.5",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "ice_hockey.total.goals.p1.match:line:1.5",
+      "line": 1.5,
+      "market_family": "total",
+      "name": "total:p1:match:1.5",
+      "period": "p1",
+      "slot": "over",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "P1 T> 1.5",
+    "line": 1.5,
+    "market_family": "total",
+    "period": "p1",
+    "side": "over",
+    "sport": "ice_hockey",
+    "sportref_market_type": "ice_hockey.total.goals.p1.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "P1 T> 1.5",
+   "sport_name": "Hockey"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "basketball.moneyline.points.ft_ot.match",
+      "market_family": "moneyline",
+      "name": "moneyline:ft_ot:match",
+      "period": "ft_ot",
+      "slot": "home",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "ML 1",
+    "market_family": "moneyline",
+    "period": "ft_ot",
+    "side": "home",
+    "sport": "basketball",
+    "sportref_market_type": "basketball.moneyline.points.ft_ot.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "ML 1",
+   "sport_name": "Basketball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "basketball.total.points.ft_ot.match:line:220.5",
+      "line": 220.5,
+      "market_family": "total",
+      "name": "total:ft_ot:match:220.5",
+      "period": "ft_ot",
+      "slot": "over",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "T> 220.5",
+    "line": 220.5,
+    "market_family": "total",
+    "period": "ft_ot",
+    "side": "over",
+    "sport": "basketball",
+    "sportref_market_type": "basketball.total.points.ft_ot.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "T> 220.5",
+   "sport_name": "Basketball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "basketball.handicap.points.ft_ot.match:home_line:-5.5",
+      "line": -5.5,
+      "market_family": "handicap",
+      "name": "handicap:ft_ot:match:-5.5/5.5",
+      "period": "ft_ot",
+      "slot": "home",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "H1 -5.5",
+    "line": -5.5,
+    "market_family": "handicap",
+    "period": "ft_ot",
+    "side": "home",
+    "sport": "basketball",
+    "sportref_market_type": "basketball.handicap.points.ft_ot.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "H1 -5.5",
+   "sport_name": "Basketball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "basketball.total.points.h1.match:line:110.5",
+      "line": 110.5,
+      "market_family": "total",
+      "name": "total:h1:match:110.5",
+      "period": "h1",
+      "slot": "over",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "1H T> 110.5",
+    "line": 110.5,
+    "market_family": "total",
+    "period": "h1",
+    "side": "over",
+    "sport": "basketball",
+    "sportref_market_type": "basketball.total.points.h1.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "1H T> 110.5",
+   "sport_name": "Basketball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "basketball.total.points.q1.match:line:50.5",
+      "line": 50.5,
+      "market_family": "total",
+      "name": "total:q1:match:50.5",
+      "period": "q1",
+      "slot": "over",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "P1 T> 50.5",
+    "line": 50.5,
+    "market_family": "total",
+    "period": "q1",
+    "side": "over",
+    "sport": "basketball",
+    "sportref_market_type": "basketball.total.points.q1.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "P1 T> 50.5",
+   "sport_name": "Basketball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "tennis.moneyline.sets.match.match",
+      "market_family": "moneyline",
+      "name": "moneyline:match:match",
+      "period": "match",
+      "slot": "home",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "ML 1",
+    "market_family": "moneyline",
+    "period": "match",
+    "side": "home",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.moneyline.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "ML 1",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "tennis.moneyline.sets.match.match",
+      "market_family": "moneyline",
+      "name": "moneyline:match:match",
+      "period": "match",
+      "slot": "away",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "ML 2",
+    "market_family": "moneyline",
+    "period": "match",
+    "side": "away",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.moneyline.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "ML 2",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "tennis.total.sets.match.match:line:2.5",
+      "line": 2.5,
+      "market_family": "total",
+      "name": "total:match:match:2.5",
+      "period": "match",
+      "slot": "over",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "Sets T> 2.5",
+    "line": 2.5,
+    "market_family": "total",
+    "period": "match",
+    "side": "over",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.total.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "Sets T> 2.5",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "tennis.total.games.match.match:line:22.5",
+      "line": 22.5,
+      "market_family": "total",
+      "name": "total:match:match:22.5",
+      "period": "match",
+      "slot": "over",
+      "target": "match",
+      "unit": "games"
+     }
+    ],
+    "key": "T> 22.5",
+    "line": 22.5,
+    "market_family": "total",
+    "period": "match",
+    "side": "over",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.total.games.match.match",
+    "target": "match",
+    "unit": "games"
+   },
+   "key": "T> 22.5",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "tennis.handicap.games.match.match:home_line:-3.5",
+      "line": -3.5,
+      "market_family": "handicap",
+      "name": "handicap:match:match:-3.5/3.5",
+      "period": "match",
+      "slot": "home",
+      "target": "match",
+      "unit": "games"
+     }
+    ],
+    "key": "H1 -3.5",
+    "line": -3.5,
+    "market_family": "handicap",
+    "period": "match",
+    "side": "home",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.handicap.games.match.match",
+    "target": "match",
+    "unit": "games"
+   },
+   "key": "H1 -3.5",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "tennis.team_total.games.match.home:line:10.5",
+      "line": 10.5,
+      "market_family": "team_total",
+      "name": "team_total:match:home:10.5",
+      "period": "match",
+      "slot": "over",
+      "target": "home",
+      "unit": "games"
+     }
+    ],
+    "key": "IT1> 10.5",
+    "line": 10.5,
+    "market_family": "team_total",
+    "period": "match",
+    "side": "over",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.team_total.games.match.home",
+    "target": "home",
+    "unit": "games"
+   },
+   "key": "IT1> 10.5",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "tennis.moneyline.games.set1.match",
+      "market_family": "moneyline",
+      "name": "moneyline:set1:match",
+      "period": "set1",
+      "slot": "home",
+      "target": "match",
+      "unit": "games"
+     }
+    ],
+    "key": "P1 ML 1",
+    "market_family": "moneyline",
+    "period": "set1",
+    "side": "home",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.moneyline.games.set1.match",
+    "target": "match",
+    "unit": "games"
+   },
+   "key": "P1 ML 1",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "tennis.total.games.set1.match:line:9.5",
+      "line": 9.5,
+      "market_family": "total",
+      "name": "total:set1:match:9.5",
+      "period": "set1",
+      "slot": "over",
+      "target": "match",
+      "unit": "games"
+     }
+    ],
+    "key": "P1 T> 9.5",
+    "line": 9.5,
+    "market_family": "total",
+    "period": "set1",
+    "side": "over",
+    "sport": "tennis",
+    "sportref_market_type": "tennis.total.games.set1.match",
+    "target": "match",
+    "unit": "games"
+   },
+   "key": "P1 T> 9.5",
+   "sport_name": "Tennis"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "volleyball.moneyline.sets.match.match",
+      "market_family": "moneyline",
+      "name": "moneyline:match:match",
+      "period": "match",
+      "slot": "home",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "ML 1",
+    "market_family": "moneyline",
+    "period": "match",
+    "side": "home",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.moneyline.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "ML 1",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "volleyball.total.sets.match.match:line:3.5",
+      "line": 3.5,
+      "market_family": "total",
+      "name": "total:match:match:3.5",
+      "period": "match",
+      "slot": "over",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "Sets T> 3.5",
+    "line": 3.5,
+    "market_family": "total",
+    "period": "match",
+    "side": "over",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.total.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "Sets T> 3.5",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "volleyball.total.points.match.match:line:180.5",
+      "line": 180.5,
+      "market_family": "total",
+      "name": "total:match:match:180.5",
+      "period": "match",
+      "slot": "over",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "T> 180.5",
+    "line": 180.5,
+    "market_family": "total",
+    "period": "match",
+    "side": "over",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.total.points.match.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "T> 180.5",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "volleyball.handicap.points.match.match:home_line:-1.5",
+      "line": -1.5,
+      "market_family": "handicap",
+      "name": "handicap:match:match:-1.5/1.5",
+      "period": "match",
+      "slot": "home",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "H1 -1.5",
+    "line": -1.5,
+    "market_family": "handicap",
+    "period": "match",
+    "side": "home",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.handicap.points.match.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "H1 -1.5",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "volleyball.handicap.sets.match.match:home_line:-1.5",
+      "line": -1.5,
+      "market_family": "handicap",
+      "name": "handicap:match:match:-1.5/1.5",
+      "period": "match",
+      "slot": "home",
+      "target": "match",
+      "unit": "sets"
+     }
+    ],
+    "key": "Sets H1 -1.5",
+    "line": -1.5,
+    "market_family": "handicap",
+    "period": "match",
+    "side": "home",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.handicap.sets.match.match",
+    "target": "match",
+    "unit": "sets"
+   },
+   "key": "Sets H1 -1.5",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "volleyball.total.points.set1.match:line:46.5",
+      "line": 46.5,
+      "market_family": "total",
+      "name": "total:set1:match:46.5",
+      "period": "set1",
+      "slot": "over",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "P1 T> 46.5",
+    "line": 46.5,
+    "market_family": "total",
+    "period": "set1",
+    "side": "over",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.total.points.set1.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "P1 T> 46.5",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "home",
+       "away"
+      ],
+      "id": "volleyball.moneyline.points.set1.match",
+      "market_family": "moneyline",
+      "name": "moneyline:set1:match",
+      "period": "set1",
+      "slot": "home",
+      "target": "match",
+      "unit": "points"
+     }
+    ],
+    "key": "P1 ML 1",
+    "market_family": "moneyline",
+    "period": "set1",
+    "side": "home",
+    "sport": "volleyball",
+    "sportref_market_type": "volleyball.moneyline.points.set1.match",
+    "target": "match",
+    "unit": "points"
+   },
+   "key": "P1 ML 1",
+   "sport_name": "Volleyball"
+  },
+  {
+   "axes": {
+    "key": "T> 60.5",
+    "line": 60.5,
+    "market_family": "total",
+    "period": "ft",
+    "side": "over",
+    "sport": "handball",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "T> 60.5",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "key": "H1 -2.5",
+    "line": -2.5,
+    "market_family": "handicap",
+    "period": "ft",
+    "side": "home",
+    "sport": "handball",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "H1 -2.5",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "key": "1",
+    "market_family": "result",
+    "period": "ft",
+    "side": "home",
+    "sport": "handball",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "1",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "key": "X",
+    "market_family": "result",
+    "period": "ft",
+    "side": "draw",
+    "sport": "handball",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "X",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "key": "DNB 1",
+    "market_family": "dnb",
+    "period": "ft",
+    "side": "home",
+    "sport": "handball",
+    "sportref_market_type": "",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "DNB 1",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "handball.total.goals.h1.match:line:28.5",
+      "line": 28.5,
+      "market_family": "total",
+      "name": "total:h1:match:28.5",
+      "period": "h1",
+      "slot": "over",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "1H T> 28.5",
+    "line": 28.5,
+    "market_family": "total",
+    "period": "h1",
+    "side": "over",
+    "sport": "handball",
+    "sportref_market_type": "handball.total.goals.h1.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "1H T> 28.5",
+   "sport_name": "Handball"
+  },
+  {
+   "axes": {
+    "arb_groups": [
+     {
+      "expected_slots": [
+       "over",
+       "under"
+      ],
+      "id": "handball.total.goals.h1.match:line:28.5",
+      "line": 28.5,
+      "market_family": "total",
+      "name": "total:h1:match:28.5",
+      "period": "h1",
+      "slot": "over",
+      "target": "match",
+      "unit": "goals"
+     }
+    ],
+    "key": "P1 T> 28.5",
+    "line": 28.5,
+    "market_family": "total",
+    "period": "h1",
+    "side": "over",
+    "sport": "handball",
+    "sportref_market_type": "handball.total.goals.h1.match",
+    "target": "match",
+    "unit": "goals"
+   },
+   "key": "P1 T> 28.5",
+   "sport_name": "Handball"
+  }
+ ]
+}

@@ -10,6 +10,10 @@ import {
   InMemoryAttemptStore,
 } from './browser_live_cart.mjs';
 
+// Child processes must exercise the module of THIS worktree, never a path of
+// another checkout.
+const CART_MODULE_URL = new URL('./browser_live_cart.mjs', import.meta.url).href;
+
 function makeTempStorePath(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'onewin-live-cart-test-'));
   t.after(() => {
@@ -32,14 +36,17 @@ function makeValidPlan(overrides = {}) {
     execution_ready: true,
     execution_blockers: [],
     live_submit_contract_verified: true,
+    live_submit_contract_source: 'unit-test-fixture',
     idempotency_key: 'live-test-key-1',
     stake: 1,
     currency: 'USDT',
     expires_at: 2000,
+    evidence: { expiries: { task: 2000, donor: 2000, reference: 2000, margins: 2000, executor_quote: 2000, account: 2000 } },
     expected_axes: { ...axes },
     account_conditions: {
       logged_in: true,
       account_identity_verified: true,
+      account_identity_source: 'unit-test-fixture',
       currency: 'USDT',
       available_balance: 8.45,
       commission: 0,
@@ -270,8 +277,13 @@ function createFakePage({
 test('1. Prototype safety: __proto__, constructor, hasOwnProperty keys persist to disk and block duplicate claim across child processes', async (t) => {
   const storePath = makeTempStorePath(t);
   const store = new DurableAttemptStore(storePath);
-  for (const protoKey of ['__proto__', 'constructor', 'hasOwnProperty', 'toString']) {
-    const plan = makeValidPlan({ idempotency_key: protoKey });
+  const protoKeys = ['__proto__', 'constructor', 'hasOwnProperty', 'toString'];
+  for (const protoKey of protoKeys) {
+    // Distinct native selections: the store allows one live intent per selection.
+    const plan = makeValidPlan({
+      idempotency_key: protoKey,
+      selection: { ...makeValidPlan().selection, selection_id: `10:${protoKeys.indexOf(protoKey) + 1}:0` },
+    });
     assert.equal(await store.claim(protoKey, { stake: 1, currency: 'USDT', payload: plan }), true);
     assert.equal(await store.claim(protoKey, { stake: 1, currency: 'USDT', payload: plan }), false);
   }
@@ -281,7 +293,7 @@ test('1. Prototype safety: __proto__, constructor, hasOwnProperty keys persist t
   const childOut = execFileSync(process.execPath, [
     '--input-type=module',
     '-e',
-    `import { DurableAttemptStore } from "/home/ubuntu/.local/state/betting/task-03-onewin-execution/bookmakers/1win/robin/scripts/onewin/browser_live_cart.mjs";
+    `import { DurableAttemptStore } from ${JSON.stringify(CART_MODULE_URL)};
      const s = new DurableAttemptStore(${JSON.stringify(storePath)});
      const claimedAgain = await s.claim("__proto__", { stake: 1, currency: "USDT", payload: ${JSON.stringify(planProto)} });
      const saved = s.getAttempt("__proto__");
@@ -325,7 +337,7 @@ test('2. Lock ownership & crash recovery: live PID locks are never stolen by age
   execFileSync(process.execPath, [
     '--input-type=module',
     '-e',
-    `import { DurableAttemptStore } from "/home/ubuntu/.local/state/betting/task-03-onewin-execution/bookmakers/1win/robin/scripts/onewin/browser_live_cart.mjs";
+    `import { DurableAttemptStore } from ${JSON.stringify(CART_MODULE_URL)};
      const s = new DurableAttemptStore(${JSON.stringify(storePath)});
      await s.claim("crash-child-1", { stake: 1, currency: "USDT", payload: ${JSON.stringify(crashPlan)} });
      await s.record("crash-child-1", "SUBMITTING");
@@ -342,7 +354,7 @@ test('2. Lock ownership & crash recovery: live PID locks are never stolen by age
   const recoverOut = execFileSync(process.execPath, [
     '--input-type=module',
     '-e',
-    `import { DurableAttemptStore } from "/home/ubuntu/.local/state/betting/task-03-onewin-execution/bookmakers/1win/robin/scripts/onewin/browser_live_cart.mjs";
+    `import { DurableAttemptStore } from ${JSON.stringify(CART_MODULE_URL)};
      const s = new DurableAttemptStore(${JSON.stringify(storePath)});
      const existing = s.getAttempt("crash-child-1");
      const duplicateClaim = await s.claim("crash-child-1", { stake: 1, currency: "USDT", payload: ${JSON.stringify(crashPlan)} });
@@ -388,10 +400,17 @@ test('4. Route guard body binding: rejects mismatched event, market, selection, 
 
   const plan = makeValidPlan();
   const validBody = buildSyntheticMakeBetBody(plan);
+  // The guard now also decides freshness and attempt state at the boundary, so
+  // the manually armed expectation needs the same context run() provides.
+  await store.claim(plan.idempotency_key, { stake: plan.stake, currency: 'USDT', payload: plan });
+  await store.record(plan.idempotency_key, 'SUBMITTING');
+  cart._runtime = { now: () => 1000, cancelled: async () => false };
 
   async function testBody(candidateBody) {
     cart.submitArmed = true;
     cart.armedExpectation = {
+      idempotencyKey: plan.idempotency_key,
+      expiresAt: 2000,
       eventId: plan.selection.event_id,
       marketId: plan.selection.market_id,
       selectionId: plan.selection.selection_id,

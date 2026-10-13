@@ -143,9 +143,13 @@ class LiveExecutionGuardTests(unittest.TestCase):
    'commission': 0.0,
    'max_stake': 8.45,
    'currency': 'USDT',
-   'axes': {'period':'full_time','scope':'REG','unit':'goals','market':'total','line':60.5,'side':'under'}
+   'axes': {'period':'full_time','scope':'REG','unit':'goals','market':'total','line':60.5,'side':'under'},
+   # Positive proofs now travel with their provenance (2026-10-13 review).
+   'live_submit_contract_verified': True,
+   'live_submit_contract_source': 'unit-test-fixture',
   }
-  acct = {'logged_in': True, 'account_identity_verified': True, 'currency': 'USDT', 'available_balance': 8.45}
+  acct = {'logged_in': True, 'account_identity_verified': True, 'account_identity_source': 'unit-test-fixture',
+          'currency': 'USDT', 'available_balance': 8.45, 'observed_at': 1001}
   order = verify_live_execution_conditions(task, exec_quote, acct, now=1002, diagnostic_only=True)
   self.assertEqual(order['stake'], 1.0)
   self.assertEqual(order['currency'], 'USDT')
