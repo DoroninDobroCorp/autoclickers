@@ -191,7 +191,7 @@ test('an unreachable upstream never falls back to a direct connection', async (t
 
 test('only the approved endpoint is accepted and a missing proxy is refused', async (t) => {
   await assert.rejects(() => withBrowserSession({ proxy: { scheme: 'socks5', host: '203.0.113.9', port: 1080 },
-    expectedProxyEndpoint: '196.19.228.25:8000', installSignalHandlers: false, chromium: {} }, async () => 1), /UNAPPROVED_PROXY_ENDPOINT/);
+    expectedProxyEndpoint: '198.51.100.7:1080', installSignalHandlers: false, chromium: {} }, async () => 1), /UNAPPROVED_PROXY_ENDPOINT/);
   await assert.rejects(() => withBrowserSession({ installSignalHandlers: false, chromium: {} }, async () => 1), /PROXY_REQUIRED/);
   void t;
 });

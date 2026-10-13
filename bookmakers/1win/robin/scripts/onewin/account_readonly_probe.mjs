@@ -28,11 +28,18 @@ function arg(name, fallback = null) {
 const flag = (name) => process.argv.includes(`--${name}`);
 
 const stage = arg('stage', 'discover');
-const proxyConfig = arg('proxy-config', `${process.env.HOME}/.config/betting/onewin/account-site-proxy-20261012.json`);
-const sessionState = arg('session-state', '/srv/betting/robinarb/current/backend/stats_data/onewin-session-state.json');
-const credentialsFile = arg('credentials-file', `${process.env.HOME}/.config/betting/onewin/account-credentials-20261012.json`);
+// Private inputs are never defaulted in the repository: the files hold the proxy URL, the stored
+// session and the expected account, and their locations are operational facts, not source.
+const required = (name) => {
+  const value = arg(name);
+  if (!value) throw new Error(`--${name} (or ONEWIN_PROBE_${name.toUpperCase().replace(/-/g, '_')}) is required`);
+  return value;
+};
+const proxyConfig = required('proxy-config');
+const sessionState = required('session-state');
+const credentialsFile = stage === 'binding' ? required('credentials-file') : arg('credentials-file');
+const expectedEndpoint = required('expected-proxy-endpoint');
 const privateOut = arg('private-out');
-const expectedEndpoint = arg('expected-proxy-endpoint', '196.19.228.25:8000');
 const executablePath = arg('chromium', process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined);
 const timeoutMs = Number(arg('timeout-ms', '280000'));
 const eventIds = (arg('event-ids', arg('event-id', '')) || '').split(',').map((v) => v.trim()).filter(Boolean);
