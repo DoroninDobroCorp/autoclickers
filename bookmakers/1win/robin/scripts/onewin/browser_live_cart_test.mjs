@@ -249,7 +249,25 @@ try {
     await context.close();
   }
 
-  console.log('7 live cart fixture regressions passed: disabled gate, budget guard, expiry, pre-submit drift, rejection, indeterminate lock, single-shot receipt');
+  // 8. Rejects incompatible market axes (period / unit / side) before DOM navigation
+  {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const store = new InMemoryAttemptStore();
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true });
+    await assert.rejects(
+      () => cart.run({
+        ...basePlan,
+        idempotency_key: 'axes-mismatch-1',
+        expected_axes: { period: 'full_time', unit: 'goals', side: 'under' },
+        selection: { ...basePlan.selection, axes: { period: '1st_half', unit: 'goals', side: 'under' } },
+      }, { now: () => 1000 }),
+      /AXES_MISMATCH:period/
+    );
+    await context.close();
+  }
+
+  console.log('8 live cart fixture regressions passed: disabled gate, budget guard, expiry, pre-submit drift, rejection, indeterminate lock, single-shot receipt, axes mismatch');
 } finally {
   delete process.env.ONEWIN_AUTOMATION_LIVE_ENABLED;
   await browser.close();

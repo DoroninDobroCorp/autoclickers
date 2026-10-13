@@ -134,10 +134,11 @@ def verify_executor_quote(task,quote,*,now):
     if (quote.get('provider_id_namespace')!='top-parser:1win' or quote.get('provider_event_key')!=str(expected['source_event_key'])
             or quote.get('source_market')!=expected['source_market'] or quote.get('odds')!=expected['odds']):
         raise CommonTaskError('executor quote differs from signal')
-    expected_axes = expected.get('axes') or task.get('axes') or {}
-    quote_axes = quote.get('axes') or {}
-    if expected_axes and quote_axes != expected_axes:
-        raise CommonTaskError('executor quote axes mismatch')
+    expected_axes = expected.get('axes') if expected.get('axes') is not None else task.get('axes')
+    quote_axes = quote.get('axes')
+    if expected_axes or quote_axes:
+        if not isinstance(expected_axes, dict) or not isinstance(quote_axes, dict) or quote_axes != expected_axes:
+            raise CommonTaskError('executor quote axes mismatch')
     if confirmed(quote)>now or now-confirmed(quote)>=(5 if task['is_live'] else 60):raise CommonTaskError('executor quote expired')
     commission=quote.get('commission');limit=quote.get('max_stake')
     if isinstance(commission,bool) or not isinstance(commission,(int,float)) or not math.isfinite(commission) or not 0<=commission<1:
@@ -292,12 +293,11 @@ def verify_live_execution_conditions(
 ) -> dict[str, Any]:
     """Strict pre-execution conditions verifier for the single 1 USDT diagnostic test.
 
-    Fails closed if the quote is stale, prices drifted, account is not authenticated,
-    currency is not USDT, or stake exceeds the 1 USDT budget.
+    Fails closed if the quote is stale, prices or axes drifted, account is not
+    authenticated, currency is not USDT, commission/capacity is unverified, or
+    stake exceeds the 1 USDT budget.
     """
-    if now >= task["expires_at"]:
-        raise CommonTaskError("task expired")
-    if not account_state.get("logged_in"):
+    if not isinstance(account_state, dict) or account_state.get("logged_in") is not True:
         raise CommonTaskError("account is not logged in")
     if account_state.get("currency") != "USDT":
         raise CommonTaskError("account currency must be USDT")
@@ -309,41 +309,27 @@ def verify_live_execution_conditions(
         raise CommonTaskError("stake exceeds 1.0 USDT diagnostic test budget")
 
     avail_balance = account_state.get("available_balance")
-    if isinstance(avail_balance, (int, float)) and avail_balance < stake:
-        raise CommonTaskError("insufficient wallet balance")
-
-    if quote.get("identity_verified_by") != "onewin-executor" or quote.get("verified") is not True:
-        raise CommonTaskError("independent executor verification required")
-
-    expected = task["quote"]
     if (
-        quote.get("provider_id_namespace") != "top-parser:1win"
-        or quote.get("provider_event_key") != str(expected["source_event_key"])
-        or quote.get("source_market") != expected["source_market"]
-        or quote.get("odds") != expected["odds"]
+        isinstance(avail_balance, bool)
+        or not isinstance(avail_balance, (int, float))
+        or not math.isfinite(avail_balance)
+        or avail_balance < stake
     ):
-        raise CommonTaskError("executor quote differs from signal")
-    expected_axes = expected.get("axes") or task.get("axes") or {}
-    quote_axes = quote.get("axes") or {}
-    if expected_axes and quote_axes != expected_axes:
-        raise CommonTaskError("executor quote axes mismatch")
+        raise CommonTaskError("insufficient or unverified wallet balance")
 
-    if confirmed(quote) > now or now - confirmed(quote) >= (5 if task["is_live"] else 60):
-        raise CommonTaskError("executor quote expired")
-
-    limit = quote.get("max_stake")
-    if isinstance(limit, (int, float)) and limit < stake:
-        raise CommonTaskError("market capacity below stake")
+    verified = verify_executor_quote(task, quote, now=now)
+    if verified["currency"] != "USDT":
+        raise CommonTaskError("executor quote currency must be USDT")
 
     return {
         "schema_version": "automation-live-order.v1",
         "live": True,
-        "idempotency_key": task["idempotency_key"],
-        "event_id": quote.get("native_event_id"),
-        "market_id": quote.get("native_market_id"),
-        "selection_id": quote.get("native_selection_id"),
-        "odds": quote["odds"],
-        "stake": stake,
+        "idempotency_key": verified["idempotency_key"],
+        "event_id": verified["event_id"],
+        "market_id": verified["market_id"],
+        "selection_id": verified["selection_id"],
+        "odds": verified["expected_odds"],
+        "stake": verified["stake"],
         "currency": "USDT",
-        "expires_at": task["expires_at"],
+        "expires_at": verified["expires_at"],
     }

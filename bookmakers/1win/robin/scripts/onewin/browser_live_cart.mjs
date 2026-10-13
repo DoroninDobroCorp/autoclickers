@@ -98,6 +98,12 @@ export class OneWinLiveCart {
     if (plan.currency && plan.currency !== 'USDT') {
       throw new Error('UNSUPPORTED_CURRENCY');
     }
+    if (plan.expected_axes) {
+      const actualAxes = plan.selection.axes || {};
+      for (const [k, v] of Object.entries(plan.expected_axes)) {
+        if (actualAxes[k] !== v) throw new Error(`AXES_MISMATCH:${k}`);
+      }
+    }
     if (plan.expires_at !== undefined && now() >= Number(plan.expires_at)) {
       throw new Error('TASK_EXPIRED');
     }

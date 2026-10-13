@@ -86,6 +86,7 @@ class LiveExecutionGuardTests(unittest.TestCase):
    'source_market': 'T< 60.5',
    'odds': 1.87,
    'source_ts': 1001,
+   'commission': 0.0,
    'max_stake': 8.45,
    'currency': 'USDT',
   }
@@ -114,6 +115,12 @@ class LiveExecutionGuardTests(unittest.TestCase):
   # Expired quote rejected
   with self.assertRaises(CommonTaskError):
    verify_live_execution_conditions(task, exec_quote, acct, now=1006)
+
+  # Missing commission or missing available_balance rejected
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, {**exec_quote, "commission": None}, acct, now=1002)
+  with self.assertRaises(CommonTaskError):
+   verify_live_execution_conditions(task, exec_quote, {**acct, "available_balance": None}, now=1002)
 
  def test_axes_preserved_and_mismatches_rejected(self):
   from onewin_automation.common import verify_executor_quote
@@ -151,3 +158,23 @@ class LiveExecutionGuardTests(unittest.TestCase):
   # Different unit rejected
   with self.assertRaises(CommonTaskError):
    verify_executor_quote(task, {**valid_exec, 'axes': {**valid_exec['axes'], 'unit': 'points'}}, now=1002)
+
+
+class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
+ async def test_placement_gate_works_with_durable_attempt_store(self):
+  from onewin_automation.common import DurableAttemptStore
+  from onewin_automation.config import OneWinAutomationConfig
+  from onewin_automation.placement import PlacementGate, BasketValidationError
+  with tempfile.TemporaryDirectory() as d:
+   store = DurableAttemptStore(d + "/attempts.sqlite")
+   cfg = OneWinAutomationConfig(live_enabled=True, max_stake=1.0)
+   async def transport(payload):
+    return {"ok": True, "status": "ACCEPTED", "receipt_id": "rcpt-101"}
+   gate = PlacementGate(enabled=True, config=cfg, transport=transport, attempt_store=store)
+   res = await gate.place({"idempotency_key": "gate-1", "stake": 1.0})
+   self.assertEqual(res["receipt_id"], "rcpt-101")
+   with self.assertRaises(BasketValidationError):
+    await gate.place({"idempotency_key": "gate-1", "stake": 1.0})
+   with self.assertRaises(BasketValidationError):
+    await gate.place({"idempotency_key": "gate-over-budget", "stake": 2.0})
+   store.close()

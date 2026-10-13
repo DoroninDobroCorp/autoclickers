@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import inspect
 from typing import Any, Protocol
 
 from .basket import BasketValidationError
@@ -62,7 +63,10 @@ class PlacementGate:
         key = str(payload.get("idempotency_key") or "").strip()
         if not key:
             raise BasketValidationError("idempotency_key is required for live placement")
-        if not await self.attempt_store.claim(key):
+        claimed = self.attempt_store.claim(key)
+        if inspect.isawaitable(claimed):
+            claimed = await claimed
+        if not claimed:
             raise BasketValidationError("duplicate 1win placement idempotency_key")
         try:
             result = await self.transport(dict(payload))
