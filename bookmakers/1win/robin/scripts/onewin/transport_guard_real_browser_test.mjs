@@ -337,6 +337,51 @@ for (const kind of ['dry', 'live']) {
   });
 }
 
+test('live: a failed installation leaves no handler behind, the retry decides every request exactly once', async (t) => {
+  if (skipReason) return t.skip(skipReason);
+  stand.reset();
+  stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin }));
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(stand.siteOrigin + EVENT_PATH);
+    const { store } = tempStore();
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: POLICY() });
+    // the first page.route() fails AFTER the context-level route was registered
+    const realRoute = page.route.bind(page);
+    let failures = 1;
+    page.route = async (...args) => {
+      if (failures > 0) { failures -= 1; throw new Error('route install boom'); }
+      return realRoute(...args);
+    };
+    await assert.rejects(() => cart.installGuard(), /route install boom/);
+    assert.equal(cart.guarded, false);
+    await cart.installGuard();
+    assert.equal(cart.guarded, true);
+    await cart._guard.ensureFreshDocument();
+    await page.goto(stand.siteOrigin + EVENT_PATH);
+    await store.claim('retry-key', { stake: 1, currency: 'USDT', payload: { idempotency_key: 'retry-key', stake: 1, currency: 'USDT',
+      event_id: '40021999', market_id: '6271', selection_id: '10:193671744120169820:0' } });
+    await store.record('retry-key', 'PRE_CHECK_PASSED');
+    await store.record('retry-key', 'SUBMITTING');
+    cart._runtime = { now: () => 1000, cancelled: async () => false };
+    cart.armedExpectation = { idempotencyKey: 'retry-key', eventId: '40021999', marketId: '6271', selectionId: '10:193671744120169820:0',
+      stake: 1, currency: 'USDT', price: 1.87, expiresAt: 2000 };
+    const answer = await page.evaluate(async ({ url }) => {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          currencyCode: 'USDT', amount: 1, coupon: { amount: 1, selections: [{ oddId: '10:193671744120169820:0', cf: 1.87, matchId: '40021999' }] },
+          wallet: { type: 'real' } }) });
+        return { status: r.status };
+      } catch (e) { return { blocked: String(e) }; }
+    }, { url: stand.betOrigin + '/bets/make-bet-v2' });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(answer.status, 200, JSON.stringify({ answer, blocked: cart.blocked_reasons }));
+    assert.equal(stand.log.money.length, 1, 'exactly one request, decided once');
+    assert.equal(cart.submitSentCount, 1);
+  } finally { await context.close(); }
+});
+
 // ---------------------------------------------------------------- end to end through the real carts
 const goodPlan = (overrides = {}) => {
   const axes = { period: 'full_time', scope: 'REG', unit: 'goals', market: 'total', line: 60.5, side: 'under',

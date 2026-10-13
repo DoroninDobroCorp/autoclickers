@@ -222,6 +222,17 @@ export class TransportGuard {
 
   async install() {
     if (this.installed) return this.report();
+    try {
+      return await this._install();
+    } catch (error) {
+      // never leave half of the layers registered: a second attempt would stack handlers
+      await this.dispose();
+      this._handlers = [];
+      throw error;
+    }
+  }
+
+  async _install() {
     const page = this.page;
     const context = this._isTestDouble() ? null : page.context();
     if (context && typeof context.serviceWorkers === 'function' && context.serviceWorkers().length > 0) {
