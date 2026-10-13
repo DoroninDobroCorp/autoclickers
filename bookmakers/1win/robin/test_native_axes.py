@@ -606,7 +606,8 @@ class ModuleContract(unittest.TestCase):
                 self.assertEqual(node.level, 0, "no relative imports: the module is independent")
                 modules.add((node.module or "").split(".")[0])
         self.assertTrue(modules)
-        self.assertLessEqual(modules, set(sys.stdlib_module_names) | {"__future__"})
+        stdlib = set(getattr(sys, "stdlib_module_names", ())) or {"math", "re", "typing", "unicodedata"}
+        self.assertLessEqual(modules, stdlib | {"__future__"})
         for forbidden in ("rapidfuzz", "sportsbook", "identity", "onewin_automation"):
             self.assertNotIn(forbidden, modules)
 
