@@ -279,8 +279,10 @@ class PlacementGate:
             try:
                 self._verify_inputs(payload, key, stake_val, currency)
             except BasketValidationError as exc:
+                token_of = getattr(self.attempt_store, "submit_token", None)
                 await self._record_status(key, "WITHDRAWN", error=f"EXPIRED_OR_CHANGED_BEFORE_TRANSPORT: {exc}",
-                                          not_sent_proof={"forwarded_requests": 0})
+                                          not_sent_proof={"forwarded_requests": 0,
+                                                          "submit_token": token_of(key) if callable(token_of) else None})
                 raise
 
         # 6. Execute transport

@@ -433,3 +433,66 @@ class LegacyGateIsExplicit(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NotSentProofIsAProcessCapability(unittest.TestCase):
+    """R-15: only the process that holds the in-flight submission may assert that nothing was sent."""
+
+    PAYLOAD = {"event_id": "1", "market_id": "2", "selection_id": "10:1:0", "expected_odds": 1.87}
+
+    def submitting(self, directory):
+        store = DurableAttemptStore(Path(directory) / "attempts.sqlite")
+        store.claim("a", stake=1.0, currency="USDT", payload={**self.PAYLOAD, "idempotency_key": "a"}, now=1000)
+        store.record_status("a", "SUBMITTING", now=1001)
+        return store
+
+    def test_r15_a_bare_assertion_is_not_proof(self):
+        with tempfile.TemporaryDirectory() as d:
+            store = self.submitting(d)
+            with self.assertRaises(CommonTaskError):
+                store.record_status("a", "WITHDRAWN", error="x", now=1002, not_sent_proof={"forwarded_requests": 0})
+            with self.assertRaises(CommonTaskError):
+                store.record_status("a", "WITHDRAWN", error="x", now=1002,
+                                    not_sent_proof={"forwarded_requests": 0, "submit_token": "guess"})
+            self.assertEqual(store.get_attempt("a")["status"], "SUBMITTING")
+            token = store.submit_token("a")
+            self.assertTrue(isinstance(token, str) and len(token) >= 16)
+            store.record_status("a", "WITHDRAWN", error="x", now=1003,
+                                not_sent_proof={"forwarded_requests": 0, "submit_token": token})
+            self.assertEqual(store.get_attempt("a")["status"], "WITHDRAWN")
+            store.close()
+
+    def test_r15_a_restarted_process_can_only_resolve_to_indeterminate(self):
+        with tempfile.TemporaryDirectory() as d:
+            store = self.submitting(d)
+            store.close()
+            reopened = DurableAttemptStore(Path(d) / "attempts.sqlite")
+            self.assertIsNone(reopened.submit_token("a"))
+            with self.assertRaises(CommonTaskError):
+                reopened.record_status("a", "WITHDRAWN", error="restart", now=1002,
+                                       not_sent_proof={"forwarded_requests": 0, "submit_token": "anything"})
+            reopened.record_status("a", "INDETERMINATE", error="restart_recovery", now=1003)
+            reopened.close()
+
+
+class QueueCurrency(unittest.TestCase):
+    def item(self, **over):
+        c = case()
+        item = {"id": 1760000000000.5, "bookmakerId": "1win", "pair": c["pair"], "outcomeData": c["outcome"],
+                "stake": 10, "source": "analyzer_single"}
+        item.update(over)
+        return item
+
+    def test_r25_stake_currency_is_explicit_and_checked(self):
+        from onewin_automation.queue_adapter import common_task_from_queue_item
+        t = common_task_from_queue_item(self.item(), stake=1.0, stake_currency="USDT", now=NOW)
+        self.assertEqual(t["queue"]["stake_currency"], "USDT")
+        self.assertEqual(t["queue"]["queue_stake"], 10)
+        for bad in ("EUR", "usdt ", None, ""):
+            with self.subTest(currency=repr(bad)):
+                with self.assertRaises(CommonTaskError):
+                    common_task_from_queue_item(self.item(), stake=1.0, stake_currency=bad, now=NOW)
+        with self.assertRaises(CommonTaskError):  # the queue item declares another currency
+            common_task_from_queue_item(self.item(currency="EUR"), stake=1.0, stake_currency="USDT", now=NOW)
+        with self.assertRaises(TypeError):  # no silent default
+            common_task_from_queue_item(self.item(), stake=1.0, now=NOW)

@@ -15,6 +15,7 @@ import re
 import sqlite3
 import threading
 from typing import Any
+import uuid
 
 from .axes import (
     ADAPTER_VERSION as AXES_ADAPTER_VERSION,
@@ -426,6 +427,8 @@ class DurableAttemptStore:
         os.close(fd)
         target.chmod(0o600)
         self._path = target
+        # Capability of the live process only: never persisted, lost on restart on purpose.
+        self._submit_tokens: dict[str, str] = {}
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         try:
             self._db.execute("PRAGMA busy_timeout=5000")
@@ -698,8 +701,11 @@ class DurableAttemptStore:
                     return state
                 allowed = set(_TRANSITIONS.get(state, ()))
                 if state == 'SUBMITTING' and status == 'WITHDRAWN':
-                    if not (isinstance(not_sent_proof, dict) and not_sent_proof.get('forwarded_requests') == 0):
-                        raise CommonTaskError("a potential submit cannot be withdrawn without proof that nothing was forwarded")
+                    held = self._submit_tokens.get(key)
+                    if not (isinstance(not_sent_proof, dict) and not_sent_proof.get('forwarded_requests') == 0
+                            and held is not None and not_sent_proof.get('submit_token') == held):
+                        raise CommonTaskError("a potential submit cannot be withdrawn without the submit token of the "
+                                              "process that holds it and proof that nothing was forwarded")
                     allowed.add('WITHDRAWN')
                 if status not in allowed:
                     raise CommonTaskError(f"illegal attempt transition {state} -> {status}")
@@ -710,6 +716,10 @@ class DurableAttemptStore:
                     (status, raw_receipt, error, max(float(ts), float(current['created_at'])), key),
                 )
                 self._db.execute("COMMIT")
+                if status == 'SUBMITTING':
+                    self._submit_tokens[key] = uuid.uuid4().hex
+                elif status in _TERMINAL_STATUSES:
+                    self._submit_tokens.pop(key, None)
                 return status
             except Exception:
                 try:
@@ -755,6 +765,15 @@ class DurableAttemptStore:
                 except sqlite3.Error:
                     pass
                 raise
+
+    def submit_token(self, key: str) -> str | None:
+        """Token of the in-flight submission of THIS process, or None.
+
+        Only the process that recorded SUBMITTING holds it; it is the only party that can
+        say "nothing was forwarded" (``not_sent_proof``). After a restart it is gone, so a
+        potential submit can then only resolve to INDETERMINATE or a bookmaker outcome.
+        """
+        return self._submit_tokens.get(key)
 
     def get_attempt(self, key: str) -> dict[str, Any] | None:
         with self._lock:

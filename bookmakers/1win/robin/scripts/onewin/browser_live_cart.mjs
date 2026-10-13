@@ -2,6 +2,7 @@
 // OneWinDryRunCart in browser_cart.mjs remains strictly read-only.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { parseAmount, eventIdFromUrl } from './browser_cart.mjs';
 
@@ -183,6 +184,7 @@ export class DurableAttemptStore {
     this.syncFailure = null;
     this._legacyRaw = null;
     this._tombstones = new Map();
+    this._submitTokens = new Map(); // capability of the live process only; never persisted
     this._initialized = false;
     this.isDurable = false;
     try {
@@ -194,6 +196,7 @@ export class DurableAttemptStore {
     }
     this._initialized = true;
     this.isDurable = this.syncFailure === null;
+    this._cleanTemporaryLocks();
   }
 
   _assertUsable() {
@@ -213,7 +216,7 @@ export class DurableAttemptStore {
     const token = crypto.randomUUID();
     const deadline = Date.now() + timeoutMs;
     const tempLockPath = `${this.lockPath}.${process.pid}.${token}`;
-    const payload = JSON.stringify({ pid: process.pid, token, created_at: Date.now() }) + '\n';
+    const payload = JSON.stringify({ pid: process.pid, host: os.hostname(), token, created_at: Date.now() }) + '\n';
 
     // Write temp lock file first so the lock file is born already populated
     const fdTmp = fs.openSync(tempLockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
@@ -246,10 +249,14 @@ export class DurableAttemptStore {
             const content = fs.readFileSync(this.lockPath, 'utf8');
             lockData = JSON.parse(content);
             ownerPid = Number(lockData.pid);
-            if (Number.isInteger(ownerPid) && ownerPid > 0) {
+            if (typeof lockData.host === 'string' && lockData.host && lockData.host !== os.hostname()) {
+              // Another machine (shared filesystem): its PID means nothing here. Never steal.
+              isAlive = true;
+            } else if (Number.isInteger(ownerPid) && ownerPid > 0) {
               if (ownerPid === process.pid) {
-                // Lock held by our own thread/scope
-                isAlive = true;
+                // Store operations are synchronous inside one process, so a lock carrying our
+                // own PID can only be left over from a failed release: it is stale.
+                isAlive = false;
               } else {
                 try {
                   process.kill(ownerPid, 0);
@@ -271,9 +278,11 @@ export class DurableAttemptStore {
           }
 
           // Owner process is dead (ESRCH): safely reap lock using serialized reap guard
+          this._clearOrphanedReapGuard();
           let reapFd = null;
           try {
             reapFd = fs.openSync(this.reapPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+            fs.writeFileSync(reapFd, JSON.stringify({ pid: process.pid, host: os.hostname(), at: Date.now() }));
             try {
               const currentStat = fs.statSync(this.lockPath);
               if (stat && currentStat.ino === stat.ino) {
@@ -299,6 +308,43 @@ export class DurableAttemptStore {
     } finally {
       try { fs.unlinkSync(tempLockPath); } catch {}
     }
+  }
+
+  // A reap guard whose writer died (or that is simply old) must not block reaping forever.
+  _clearOrphanedReapGuard() {
+    try {
+      const stat = fs.statSync(this.reapPath);
+      let writerAlive = false;
+      try {
+        const data = JSON.parse(fs.readFileSync(this.reapPath, 'utf8'));
+        if (typeof data.host === 'string' && data.host && data.host !== os.hostname()) writerAlive = true;
+        else if (Number.isInteger(data.pid) && data.pid > 0 && data.pid !== process.pid) {
+          try { process.kill(data.pid, 0); writerAlive = true; } catch (e) { writerAlive = e.code === 'EPERM'; }
+        }
+      } catch {}
+      if (!writerAlive || Date.now() - stat.mtimeMs > 30000) fs.unlinkSync(this.reapPath);
+    } catch {}
+  }
+
+  // Temporary lock files left by a killed process (name carries its PID).
+  _cleanTemporaryLocks() {
+    try {
+      const dir = path.dirname(this.lockPath);
+      const prefix = `${path.basename(this.lockPath)}.`;
+      for (const name of fs.readdirSync(dir)) {
+        if (!name.startsWith(prefix)) continue;
+        const match = name.slice(prefix.length).match(/^(\d+)\.[0-9a-f-]{8,}$/);
+        if (!match) continue;
+        const full = path.join(dir, name);
+        try {
+          if (Date.now() - fs.statSync(full).mtimeMs < 60000) continue;
+          const pid = Number(match[1]);
+          let alive = false;
+          try { process.kill(pid, 0); alive = true; } catch (e) { alive = e.code === 'EPERM'; }
+          if (!alive) fs.unlinkSync(full);
+        } catch {}
+      }
+    } catch {}
   }
 
   _releaseLock(lockHandle) {
@@ -599,7 +645,10 @@ export class DurableAttemptStore {
       }
       let allowed = TRANSITIONS.get(entry.status) || new Set();
       if (entry.status === 'SUBMITTING' && status === 'WITHDRAWN') {
-        if (!isPlainObject(not_sent_proof) || not_sent_proof.forwarded_requests !== 0) {
+        // Only the process that holds the in-flight submission can say "nothing was forwarded".
+        const held = this._submitTokens.get(cleanKey);
+        if (!isPlainObject(not_sent_proof) || not_sent_proof.forwarded_requests !== 0
+          || typeof held !== 'string' || not_sent_proof.submit_token !== held) {
           throw new Error('NOT_SENT_PROOF_REQUIRED');
         }
         allowed = new Set([...allowed, 'WITHDRAWN']);
@@ -620,8 +669,14 @@ export class DurableAttemptStore {
       entry.updated_at = Math.max(Date.now(), entry.created_at);
       validateEntry(cleanKey, entry);
       this._writeDataUnlocked(attemptsMap);
+      if (status === 'SUBMITTING') this._submitTokens.set(cleanKey, crypto.randomUUID());
+      else if (TERMINAL_STATUSES.has(status)) this._submitTokens.delete(cleanKey);
       return JSON.parse(JSON.stringify(entry));
     });
+  }
+
+  submitToken(key) {
+    return this._submitTokens.get(typeof key === 'string' ? key.trim() : '') ?? null;
   }
 
   // A withdrawal request is a flag, not a phase change: the owner of a running
@@ -1282,7 +1337,7 @@ export class OneWinLiveCart {
             result.status = 'ABORTED_PRE_SUBMIT';
             await this.attemptStore.record(idempotencyKey, 'WITHDRAWN', {
               error: `SUBMIT_ABORTED_BEFORE_SEND:${reason}`,
-              not_sent_proof: { forwarded_requests: 0, reason },
+              not_sent_proof: { forwarded_requests: 0, reason, submit_token: this.attemptStore.submitToken(idempotencyKey) },
             });
             throw new Error(`SUBMIT_ABORTED_BEFORE_SEND:${reason}`);
           }
@@ -1416,7 +1471,8 @@ export class OneWinLiveCart {
           // be withdrawn with that proof; earlier phases need none.
           await this.attemptStore.record(idempotencyKey, 'WITHDRAWN', {
             error: String(error.message || error),
-            not_sent_proof: { forwarded_requests: this.submitSentCount, reason: 'aborted_before_send' },
+            not_sent_proof: { forwarded_requests: this.submitSentCount, reason: 'aborted_before_send',
+              submit_token: this.attemptStore.submitToken(idempotencyKey) },
           }).catch(() => {});
         }
       }

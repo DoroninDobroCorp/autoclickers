@@ -71,7 +71,7 @@ class RealQueueToCommonTask(unittest.TestCase):
 
     def test_adapter_builds_the_same_task_the_value_path_builds(self):
         item = enqueue("P1 T< 1")
-        task = common_task_from_queue_item(item, stake=1.0, now=NOW)
+        task = common_task_from_queue_item(item, stake=1.0, stake_currency="USDT", now=NOW)
         direct = next(c for c in RECORDED["cases"] if c["name"] == "P1 T< 1")
         self.assertEqual(task["quote"], direct["outcome"]["donor_quote"])
         self.assertEqual(task["axes"], direct["outcome"]["donor_quote"]["market_axes"])
@@ -79,7 +79,7 @@ class RealQueueToCommonTask(unittest.TestCase):
         self.assertEqual(task["reference_source"], "BIA")
         self.assertFalse(task["execution_ready"])
         self.assertEqual(task["queue"]["task_id"], item["id"])
-        self.assertFalse(task["queue"]["queue_currency_assumed_equal"])
+        self.assertEqual(task["queue"]["stake_currency"], "USDT")
 
     def test_identity_is_stable_across_restart_and_does_not_depend_on_prices(self):
         item = enqueue("P1 T< 1")
@@ -98,25 +98,25 @@ class RealQueueToCommonTask(unittest.TestCase):
             broken = {**item, **mutation}
             with self.subTest(mutation=mutation):
                 with self.assertRaises(CommonTaskError):
-                    common_task_from_queue_item(broken, stake=1.0, now=NOW)
+                    common_task_from_queue_item(broken, stake=1.0, stake_currency="USDT", now=NOW)
 
     def test_stake_must_be_explicit_and_positive_in_the_account_currency(self):
         item = enqueue("P1 T< 1")
         for stake in (None, True, 0, -1, float("nan")):
             with self.subTest(stake=repr(stake)):
                 with self.assertRaises((CommonTaskError, TypeError)):
-                    common_task_from_queue_item(item, stake=stake, now=NOW)
+                    common_task_from_queue_item(item, stake=stake, stake_currency="USDT", now=NOW)
 
     def test_restart_replay_withdrawal_and_changed_payload(self):
         item = enqueue("P1 T< 1")
-        task = common_task_from_queue_item(item, stake=1.0, now=NOW)
+        task = common_task_from_queue_item(item, stake=1.0, stake_currency="USDT", now=NOW)
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "dry.sqlite"
             store = DurableDryRunStore(path)
             self.assertFalse(store.prepare(task, now=NOW + 0.1)["duplicate"])
             store.close()
             store = DurableDryRunStore(path)
-            replay = common_task_from_queue_item(json.loads(json.dumps(item)), stake=1.0, now=NOW)
+            replay = common_task_from_queue_item(json.loads(json.dumps(item)), stake=1.0, stake_currency="USDT", now=NOW)
             self.assertTrue(store.prepare(replay, now=NOW + 0.2)["duplicate"])
             stale = copy.deepcopy(replay)
             stale["quote"]["odds"] = 1.01

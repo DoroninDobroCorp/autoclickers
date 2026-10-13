@@ -314,8 +314,10 @@ test('2. Lock ownership & crash recovery: live PID locks are never stolen by age
   const store = new DurableAttemptStore(storePath);
   const lockPath = `${storePath}.lock`;
 
-  // 2a. Live PID lock backdated by 30 seconds must NOT be stolen
-  fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, token: 'live-owner-token', created_at: Date.now() - 30000 }), { mode: 0o600 });
+  // 2a. Live PID lock backdated by 30 seconds must NOT be stolen. The holder is another live
+  // process (the parent): a lock carrying this process's own PID is stale by construction because
+  // store operations are synchronous.
+  fs.writeFileSync(lockPath, JSON.stringify({ pid: process.ppid, token: 'live-owner-token', created_at: Date.now() - 30000 }), { mode: 0o600 });
   const past = new Date(Date.now() - 30000);
   fs.utimesSync(lockPath, past, past);
 

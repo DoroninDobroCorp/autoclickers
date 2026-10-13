@@ -40,8 +40,20 @@ def queue_item_identity(item: Any) -> str:
     return f"q-{digest[:40]}"
 
 
-def common_task_from_queue_item(item: dict[str, Any], *, stake: float, now: float) -> dict[str, Any]:
-    """Convert a queue item into ``automation-task.v1`` (dry-run boundary preserved)."""
+def common_task_from_queue_item(item: dict[str, Any], *, stake: float, stake_currency: str,
+                                now: float) -> dict[str, Any]:
+    """Convert a queue item into ``automation-task.v1`` (dry-run boundary preserved).
+
+    ``stake`` is the owner policy's stake in the account currency and ``stake_currency`` must be
+    stated explicitly (no default): the Node queue works in its own currency and its stake is
+    informational only. A queue item that declares another currency is refused.
+    """
+    if stake_currency != "USDT":
+        raise CommonTaskError("stake_currency must be the account currency USDT")
+    for field in ("currency", "stakeCurrency", "stake_currency"):
+        declared = item.get(field) if isinstance(item, dict) else None
+        if declared not in (None, "") and str(declared).strip().upper() != stake_currency:
+            raise CommonTaskError(f"queue item declares currency {declared!r}, not {stake_currency}")
     key = queue_item_identity(item)
     pair, outcome = item.get("pair"), item.get("outcomeData")
     if not isinstance(pair, dict) or not isinstance(outcome, dict):
@@ -53,7 +65,7 @@ def common_task_from_queue_item(item: dict[str, Any], *, stake: float, now: floa
         "bookmaker_id": item.get("bookmakerId"),
         "source": item.get("source"),
         "queue_stake": item.get("stake"),
-        "queue_currency_assumed_equal": False,
+        "stake_currency": stake_currency,
         "created_at": item.get("createdAt"),
     }
     return task

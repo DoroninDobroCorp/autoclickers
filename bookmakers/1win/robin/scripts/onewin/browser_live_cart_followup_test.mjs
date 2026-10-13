@@ -238,3 +238,53 @@ test('R-24 a reconciled_not_placed revision with operator and evidence frees the
   assert.equal(store.getAttempt('a').status, 'INDETERMINATE');
   assert.equal(await store.claim('b', { stake: 1, currency: 'USDT', payload: payload('b') }), true);
 });
+
+// ------------------------------------------------------------------ R-15
+test('R-15 "nothing was sent" needs the in-flight submission token of the process that holds it', async (t) => {
+  const { store, file } = await newCart(t);
+  const payload = { idempotency_key: 'a', stake: 1, currency: 'USDT', event_id: '1', market_id: '2', selection_id: '10:1:0' };
+  await store.claim('a', { stake: 1, currency: 'USDT', payload });
+  await store.record('a', 'SUBMITTING');
+  await assert.rejects(() => store.record('a', 'WITHDRAWN', { error: 'x', not_sent_proof: { forwarded_requests: 0 } }),
+    /NOT_SENT_PROOF_REQUIRED/);
+  await assert.rejects(() => store.record('a', 'WITHDRAWN', { error: 'x',
+    not_sent_proof: { forwarded_requests: 0, submit_token: 'guess' } }), /NOT_SENT_PROOF_REQUIRED/);
+  const token = store.submitToken('a');
+  assert.equal(typeof token, 'string');
+  const restarted = new DurableAttemptStore(file);
+  assert.equal(restarted.submitToken('a'), null);
+  await assert.rejects(() => restarted.record('a', 'WITHDRAWN', { error: 'x',
+    not_sent_proof: { forwarded_requests: 0, submit_token: token } }), /NOT_SENT_PROOF_REQUIRED/);
+  await store.record('a', 'WITHDRAWN', { error: 'x', not_sent_proof: { forwarded_requests: 0, submit_token: token } });
+  assert.equal(store.getAttempt('a').status, 'WITHDRAWN');
+});
+
+// ------------------------------------------------------------------ R-23
+test('R-23 a lock left by this very process is stale, not a 5 second outage', async (t) => {
+  const { store } = await newCart(t);
+  fs.writeFileSync(store.lockPath, JSON.stringify({ pid: process.pid, token: 'left-over', created_at: Date.now() - 60000 }));
+  const started = Date.now();
+  assert.equal(store.getAttempt('missing'), null);
+  assert.ok(Date.now() - started < 2000, 'a stale same-process lock must be reaped promptly');
+});
+
+test('R-23 a lock written by another host is never stolen', async (t) => {
+  const { store } = await newCart(t);
+  fs.writeFileSync(store.lockPath, JSON.stringify({ pid: 999999, host: 'some-other-host.example', token: 'x', created_at: 1 }));
+  assert.throws(() => store._acquireLock(150), /DURABLE_STORE_LOCK_TIMEOUT/);
+  assert.equal(fs.existsSync(store.lockPath), true);
+});
+
+test('R-23 an orphaned reap guard and leftover temporary locks are cleaned instead of blocking the store', async (t) => {
+  const { store } = await newCart(t);
+  fs.writeFileSync(store.lockPath, JSON.stringify({ pid: 999999, token: 'dead', created_at: 1 }));
+  fs.writeFileSync(store.reapPath, JSON.stringify({ pid: 999998, at: Date.now() - 120000 }));
+  const leftover = `${store.lockPath}.999997.${'0'.repeat(8)}`;
+  fs.writeFileSync(leftover, '{}');
+  const old = new Date(Date.now() - 120000);
+  fs.utimesSync(leftover, old, old);
+  assert.equal(store.getAttempt('missing'), null);
+  assert.equal(fs.existsSync(store.reapPath), false);
+  new DurableAttemptStore(store.filePath);
+  assert.equal(fs.existsSync(leftover), false);
+});
