@@ -334,7 +334,7 @@ test('P1.5 directory fsync EIO is reflected in the state and blocks placement', 
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).version, 1, 'file must remain a valid store');
 });
 
-for (const [name, patch] of [
+const WRITE_FAILURES = [
   ['file fsync EIO', () => failFsync('file')],
   ['rename EIO', () => {
     const original = fs.renameSync;
@@ -349,7 +349,9 @@ for (const [name, patch] of [
     };
     return () => { fs.writeFileSync = original; };
   }],
-]) {
+];
+
+for (const [name, patch] of WRITE_FAILURES) {
   test(`P1.5 ${name} before the receipt leaves the original file intact and blocks the claim`, async (t) => {
     const file = tmpStore(t);
     const store = new DurableAttemptStore(file);
@@ -362,6 +364,52 @@ for (const [name, patch] of [
     assert.equal(fs.readFileSync(file, 'utf8'), before, 'original store bytes changed');
     assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('.tmp.')), [], 'temporary file leaked');
     assert.equal(store.isDurable, false);
+  });
+
+  test(`P1.5 ${name} at the SUBMITTING record forwards nothing`, async (t) => {
+    const clock = { t: 1000 };
+    let restore = null;
+    // the failure is armed right before the cart records SUBMITTING
+    process.env.ONEWIN_AUTOMATION_LIVE_ENABLED = 'true';
+    const file = tmpStore(t);
+    const store = new DurableAttemptStore(file);
+    const original = store.record.bind(store);
+    store.record = async (key, status, detail) => {
+      if (status === 'SUBMITTING') restore = patch();
+      try { return await original(key, status, detail); } finally { if (restore) { restore(); restore = null; } }
+    };
+    const page = hookedPage();
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true });
+    const result = await cart.run(plan(), { now: () => clock.t });
+    assert.equal(page.stats().makeBetPosts, 0, 'a bet was forwarded although SUBMITTING could not be recorded durably');
+    assert.equal(cart.submitSentCount, 0);
+    assert.notEqual(result.status, 'ACCEPTED');
+    assert.equal(store.isDurable, false);
+  });
+
+  test(`P1.5 ${name} after the accepted receipt keeps the fact and forbids another bet`, async (t) => {
+    const clock = { t: 1000 };
+    const file = tmpStore(t);
+    process.env.ONEWIN_AUTOMATION_LIVE_ENABLED = 'true';
+    const store = new DurableAttemptStore(file);
+    let restore = null;
+    // the failure strikes after the request was forwarded, while the answer is being processed
+    const page = hookedPage({ makeBetHandler: async () => {
+      restore = patch();
+      return { status: 200, json: async () => ({ result: { success: {
+        betId: 987654321, cf: 1.87, amount: 1, currencyCode: 'USDT', possibleProfitAmount: 1.87 } } }) };
+    } });
+    const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true });
+    let result;
+    try { result = await cart.run(plan(), { now: () => clock.t }); } finally { if (restore) restore(); }
+    assert.equal(page.stats().makeBetPosts, 1);
+    assert.equal(result.status, 'ACCEPTED', 'accepted fact lost after the write error');
+    assert.equal(result.receipt.bet_id, '987654321');
+    assert.equal(result.durable_record_failed, true);
+    assert.equal(store.isDurable, false);
+    const reopened = new DurableAttemptStore(file);
+    assert.equal(await reopened.claim('review-key-1', { stake: 1, currency: 'USDT', payload: claimPayload('review-key-1') }), false);
+    assert.equal(reopened.getAttempt('review-key-1').status, 'SUBMITTING');
   });
 }
 
