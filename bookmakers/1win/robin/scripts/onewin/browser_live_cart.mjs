@@ -7,8 +7,21 @@ import { parseAmount, eventIdFromUrl } from './browser_cart.mjs';
 
 const TERMINAL_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'INDETERMINATE', 'WITHDRAWN']);
 const VALID_STATUSES = new Set(['CLAIMED', 'PRE_CHECK_PASSED', 'SUBMITTING', ...TERMINAL_STATUSES]);
+// Legal phase changes. Terminal states have no outgoing edge. A potential submit
+// (SUBMITTING) resolves only into a bookmaker outcome or INDETERMINATE; it can be
+// WITHDRAWN only with proof that nothing was forwarded (see record()).
+const TRANSITIONS = new Map([
+  ['CLAIMED', new Set(['PRE_CHECK_PASSED', 'SUBMITTING', 'WITHDRAWN'])],
+  ['PRE_CHECK_PASSED', new Set(['SUBMITTING', 'WITHDRAWN'])],
+  ['SUBMITTING', new Set(['ACCEPTED', 'REJECTED', 'INDETERMINATE'])],
+]);
 const GUESSED_UNITS = new Set(['', 'unknown', 'unverified', 'match_base_unit', 'unverified_from_dom_only', 'guessed']);
 const REQUIRED_AXIS_KEYS = ['period', 'scope', 'unit', 'market', 'side'];
+const REQUIRED_EXPIRIES = ['task', 'donor', 'reference', 'margins', 'executor_quote', 'account'];
+// Directory fsync results that mean "this filesystem cannot do it" rather than
+// "the write failed". They are accepted only through an explicit opt-in and the
+// resulting durability level is recorded; EIO and everything else is fatal.
+const UNSUPPORTED_DIR_SYNC_CODES = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP']);
 const KNOWN_REJECTIONS = new Set([
   'not_enough_funds', 'zero_bet', 'odd_closed', 'odd_not_found',
   'currency_not_supported', 'odd_cf_changed', 'min_bet_amount',
@@ -22,7 +35,36 @@ function isPlainObject(val) {
   return Boolean(val) && typeof val === 'object' && !Array.isArray(val);
 }
 
-function fsyncDir(dirPath) {
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (isPlainObject(value)) {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function deepEqual(a, b) {
+  return stable(a) === stable(b);
+}
+
+function isFinitePositive(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function receiptIdentifier(receipt) {
+  if (!isPlainObject(receipt)) return null;
+  for (const name of ['bet_id', 'receipt_id']) {
+    const value = receipt[name];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return String(value);
+  }
+  return null;
+}
+
+// Lock files are mutual-exclusion state between live processes (stale ones are
+// reaped by PID liveness). Their directory durability is irrelevant, so this
+// helper is best effort and is never used for attempt data.
+function fsyncDirBestEffort(dirPath) {
   let fd = null;
   try {
     fd = fs.openSync(dirPath, fs.constants.O_RDONLY);
@@ -31,6 +73,62 @@ function fsyncDir(dirPath) {
   finally {
     if (fd !== null) {
       try { fs.closeSync(fd); } catch {}
+    }
+  }
+}
+
+// Attempt data: every error is reported to the caller.
+function fsyncDirStrict(dirPath) {
+  const fd = fs.openSync(dirPath, fs.constants.O_RDONLY);
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    try { fs.closeSync(fd); } catch {}
+  }
+}
+
+function corrupt(reason) {
+  return new Error(`CORRUPT_DURABLE_ATTEMPT_STORE:${reason}`);
+}
+
+function validateEntry(key, entry) {
+  const bad = (field) => corrupt(`INVALID_ENTRY:${field}`);
+  if (typeof key !== 'string' || !key.trim() || key !== key.trim() || key.length > 128) throw bad('map_key');
+  if (!isPlainObject(entry)) throw bad('entry');
+  if (entry.key !== key) throw bad('key');
+  if (!VALID_STATUSES.has(entry.status)) throw bad('status');
+  if (!isFinitePositive(entry.stake)) throw bad('stake');
+  if (typeof entry.currency !== 'string' || !/^[A-Z]{3,6}$/.test(entry.currency)) throw bad('currency');
+  for (const field of ['event_id', 'market_id', 'selection_id']) {
+    if (entry[field] !== null && typeof entry[field] !== 'string') throw bad(field);
+  }
+  if (entry.expected_odds !== null && !isFinitePositive(entry.expected_odds)) throw bad('expected_odds');
+  if (!isPlainObject(entry.payload) || Object.keys(entry.payload).length === 0) throw bad('payload');
+  if (entry.payload.idempotency_key !== undefined && String(entry.payload.idempotency_key).trim() !== key) throw bad('payload_key');
+  if (entry.payload.stake !== undefined && (typeof entry.payload.stake !== 'number' || Math.abs(entry.payload.stake - entry.stake) > 1e-9)) {
+    throw bad('payload_stake');
+  }
+  if (entry.payload.currency !== undefined && String(entry.payload.currency).trim().toUpperCase() !== entry.currency) {
+    throw bad('payload_currency');
+  }
+  if (entry.receipt !== null && !isPlainObject(entry.receipt)) throw bad('receipt');
+  if (entry.status === 'ACCEPTED' && receiptIdentifier(entry.receipt) === null) throw bad('accepted_receipt');
+  if (entry.error !== null && typeof entry.error !== 'string') throw bad('error');
+  if (!Array.isArray(entry.condition_mismatches) || !entry.condition_mismatches.every((m) => typeof m === 'string')) {
+    throw bad('condition_mismatches');
+  }
+  if (!isFinitePositive(entry.created_at) || !isFinitePositive(entry.updated_at) || entry.updated_at < entry.created_at) {
+    throw bad('clocks');
+  }
+  if (entry.withdrawal_requested !== undefined && entry.withdrawal_requested !== null) {
+    const w = entry.withdrawal_requested;
+    if (!isPlainObject(w) || !isFinitePositive(w.at) || typeof w.reason !== 'string') throw bad('withdrawal_requested');
+  }
+  if (entry.revisions !== undefined) {
+    if (!Array.isArray(entry.revisions)) throw bad('revisions');
+    for (const rev of entry.revisions) {
+      if (!isPlainObject(rev) || !Number.isInteger(rev.seq) || rev.seq < 1 || typeof rev.kind !== 'string' || !rev.kind
+        || !isPlainObject(rev.data) || !isFinitePositive(rev.created_at)) throw bad('revisions');
     }
   }
 }
@@ -61,20 +159,44 @@ export class InMemoryAttemptStore {
 }
 
 export class DurableAttemptStore {
-  constructor(filePath, { maxStake = null } = {}) {
+  constructor(filePath, { maxStake = null, allowUnsupportedDirectorySync = false } = {}) {
     if (typeof filePath !== 'string' || !filePath.trim()) {
       throw new Error('DURABLE_STORE_PATH_REQUIRED');
     }
     this.filePath = path.resolve(filePath);
     this.lockPath = `${this.filePath}.lock`;
     this.reapPath = `${this.filePath}.reap`;
+    this.journalPath = `${this.filePath}.receipts.jsonl`;
     this.maxStake = maxStake !== null && maxStake !== undefined ? Number(maxStake) : null;
     if (this.maxStake !== null && (!Number.isFinite(this.maxStake) || this.maxStake <= 0)) {
       throw new Error('INVALID_MAX_STAKE');
     }
+    this.allowUnsupportedDirectorySync = Boolean(allowUnsupportedDirectorySync);
+    this.durabilityLevel = 'directory_fsync';
+    this.syncFailure = null;
+    this._legacyRaw = null;
     this.isDurable = false;
-    this._initOnDisk();
-    this.isDurable = true;
+    try {
+      this._initOnDisk();
+    } catch (err) {
+      // An unsupported directory sync leaves a valid file behind; the store is
+      // simply not durable. Every other failure aborts construction.
+      if (!(this.syncFailure && this.syncFailure.unsupported)) throw err;
+    }
+    this.isDurable = this.syncFailure === null;
+  }
+
+  _assertUsable() {
+    if (this.syncFailure) {
+      const f = this.syncFailure;
+      throw new Error(`DURABLE_STORE_UNAVAILABLE:${f.stage}:${f.code}`);
+    }
+  }
+
+  _markSyncFailure(stage, err, unsupported = false) {
+    this.isDurable = false;
+    this.syncFailure = { stage, code: err && err.code ? String(err.code) : 'ERR', message: String(err && err.message || err).slice(0, 200), unsupported, at: Date.now() };
+    return new Error(`DURABLE_STORE_SYNC_FAILED:${stage}:${this.syncFailure.code}`);
   }
 
   _acquireLock(timeoutMs = 5000) {
@@ -86,8 +208,10 @@ export class DurableAttemptStore {
     // Write temp lock file first so the lock file is born already populated
     const fdTmp = fs.openSync(tempLockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
     try {
+      // The lock only excludes live processes (stale ones are reaped by PID
+      // liveness), so its content needs no fsync; attempt data is synced strictly
+      // in _writeDataUnlocked.
       fs.writeFileSync(fdTmp, payload, 'utf8');
-      fs.fsyncSync(fdTmp);
     } finally {
       fs.closeSync(fdTmp);
     }
@@ -96,7 +220,7 @@ export class DurableAttemptStore {
       while (true) {
         try {
           fs.linkSync(tempLockPath, this.lockPath);
-          fsyncDir(path.dirname(this.lockPath));
+          fsyncDirBestEffort(path.dirname(this.lockPath));
           const stat = fs.statSync(this.lockPath);
           return { token, ino: stat.ino };
         } catch (err) {
@@ -144,7 +268,7 @@ export class DurableAttemptStore {
               const currentStat = fs.statSync(this.lockPath);
               if (stat && currentStat.ino === stat.ino) {
                 fs.unlinkSync(this.lockPath);
-                fsyncDir(path.dirname(this.lockPath));
+                fsyncDirBestEffort(path.dirname(this.lockPath));
               }
             } catch {}
           } catch {
@@ -180,7 +304,7 @@ export class DurableAttemptStore {
         throw new Error('LOCK_OWNERSHIP_LOST');
       }
       fs.unlinkSync(this.lockPath);
-      fsyncDir(path.dirname(this.lockPath));
+      fsyncDirBestEffort(path.dirname(this.lockPath));
     } catch (err) {
       if (err.message === 'LOCK_OWNERSHIP_LOST') throw err;
       // If file was already gone
@@ -188,7 +312,17 @@ export class DurableAttemptStore {
   }
 
   _withLock(fn) {
-    const handle = this._acquireLock();
+    let handle;
+    try {
+      handle = this._acquireLock();
+    } catch (err) {
+      // A system I/O error while taking the lock means the filesystem cannot be
+      // trusted for attempt data either. Contention (LOCK_TIMEOUT) is not one.
+      if (err && typeof err.code === 'string' && /^E[A-Z0-9]+$/.test(err.code) && err.code !== 'EEXIST') {
+        throw this._markSyncFailure('lock', err);
+      }
+      throw err;
+    }
     try {
       return fn();
     } finally {
@@ -197,6 +331,7 @@ export class DurableAttemptStore {
   }
 
   _readDataUnlocked() {
+    this._legacyRaw = null;
     if (!fs.existsSync(this.filePath)) {
       return new Map();
     }
@@ -221,39 +356,89 @@ export class DurableAttemptStore {
           throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_ENTRY');
         }
         if (attemptsMap.has(item[0])) throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:DUPLICATE_KEY');
+        validateEntry(item[0], item[1]);
         attemptsMap.set(item[0], item[1]);
       }
     } else if (isPlainObject(parsed.attempts)) {
+      // Legacy v1 layout. Entries are validated with the same rules; nothing is
+      // invented for missing financial facts. The original bytes are backed up
+      // before the first rewrite (see _writeDataUnlocked).
       for (const [k, v] of Object.entries(parsed.attempts)) {
         if (!k.trim() || !isPlainObject(v)) throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_LEGACY_ENTRY');
+        validateEntry(k, v);
         attemptsMap.set(k, v);
       }
+      this._legacyRaw = raw;
     } else {
       throw new Error('CORRUPT_DURABLE_ATTEMPT_STORE:INVALID_SCHEMA');
     }
     return attemptsMap;
   }
 
-  _writeDataUnlocked(attemptsMap) {
-    const dir = path.dirname(this.filePath);
-    const tmpPath = `${this.filePath}.tmp.${process.pid}.${Date.now()}`;
-    const entries = Array.from(attemptsMap.entries());
-    const payloadObj = {
-      version: 1,
-      entries,
-    };
-    const raw = JSON.stringify(payloadObj, null, 2) + '\n';
-    const fd = fs.openSync(tmpPath, fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_WRONLY, 0o600);
-    try {
-      fs.writeFileSync(fd, raw, 'utf8');
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
+  _backupLegacyUnlocked() {
+    if (this._legacyRaw === null) return;
+    const digest = crypto.createHash('sha256').update(this._legacyRaw).digest('hex').slice(0, 12);
+    const backup = `${this.filePath}.legacy-v1.${digest}.bak`;
+    if (!fs.existsSync(backup)) {
+      const fd = fs.openSync(backup, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+      try {
+        fs.writeFileSync(fd, this._legacyRaw, 'utf8');
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+      fsyncDirStrict(path.dirname(backup));
     }
-    fs.chmodSync(tmpPath, 0o600);
-    fs.renameSync(tmpPath, this.filePath);
-    fs.chmodSync(this.filePath, 0o600);
-    fsyncDir(dir);
+    this._legacyRaw = null;
+  }
+
+  _writeDataUnlocked(attemptsMap) {
+    this._assertUsable();
+    const dir = path.dirname(this.filePath);
+    const tmpPath = `${this.filePath}.tmp.${process.pid}.${Date.now()}.${crypto.randomUUID().slice(0, 8)}`;
+    let stage = 'serialize';
+    let tmpCreated = false;
+    try {
+      const entries = Array.from(attemptsMap.entries());
+      const raw = JSON.stringify({ version: 1, entries }, null, 2) + '\n';
+      stage = 'backup_legacy';
+      this._backupLegacyUnlocked();
+      stage = 'open_tmp';
+      const fd = fs.openSync(tmpPath, fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_WRONLY, 0o600);
+      tmpCreated = true;
+      try {
+        stage = 'write_tmp';
+        fs.writeFileSync(fd, raw, 'utf8');
+        stage = 'fsync_file';
+        fs.fsyncSync(fd);
+      } finally {
+        try { fs.closeSync(fd); } catch {}
+      }
+      stage = 'chmod_tmp';
+      fs.chmodSync(tmpPath, 0o600);
+      stage = 'rename';
+      fs.renameSync(tmpPath, this.filePath);
+      tmpCreated = false;
+      stage = 'chmod';
+      fs.chmodSync(this.filePath, 0o600);
+      stage = 'fsync_dir';
+      try {
+        fsyncDirStrict(dir);
+      } catch (dirErr) {
+        if (UNSUPPORTED_DIR_SYNC_CODES.has(dirErr && dirErr.code) && this.allowUnsupportedDirectorySync) {
+          this.durabilityLevel = 'file_fsync_only';
+        } else {
+          dirErr.unsupported = UNSUPPORTED_DIR_SYNC_CODES.has(dirErr && dirErr.code);
+          throw dirErr;
+        }
+      }
+    } catch (err) {
+      if (tmpCreated) {
+        try { fs.unlinkSync(tmpPath); } catch {}
+      }
+      if (err && typeof err.message === 'string' && err.message.startsWith('CORRUPT_DURABLE_ATTEMPT_STORE')) throw err;
+      throw this._markSyncFailure(stage, err, Boolean(err && err.unsupported));
+    }
   }
 
   _initOnDisk() {
@@ -270,6 +455,7 @@ export class DurableAttemptStore {
   }
 
   async claim(key, { stake, currency = 'USDT', payload = null, maxStake = null } = {}) {
+    this._assertUsable();
     if (typeof key !== 'string' || !key.trim() || key.trim().length > 128) {
       throw new Error('IDEMPOTENCY_KEY_REQUIRED');
     }
@@ -303,12 +489,23 @@ export class DurableAttemptStore {
     const marketId = String(payload.market_id || sel.market_id || '') || null;
     const selectionId = String(payload.selection_id || sel.selection_id || '') || null;
     const rawOdds = payload.expected_odds ?? payload.odds ?? sel.price;
-    const expectedOdds = typeof rawOdds === 'number' && Number.isFinite(rawOdds) ? rawOdds : null;
+    const expectedOdds = typeof rawOdds === 'number' && Number.isFinite(rawOdds) && rawOdds > 0 ? rawOdds : null;
 
     return this._withLock(() => {
+      this._assertUsable();
       const attemptsMap = this._readDataUnlocked();
       if (attemptsMap.has(cleanKey)) {
         return false;
+      }
+      if (eventId && marketId && selectionId) {
+        // One live intent per native selection: another key for the same selection
+        // that is in flight, accepted or unresolved blocks this claim.
+        for (const other of attemptsMap.values()) {
+          if (other.event_id === eventId && other.market_id === marketId && other.selection_id === selectionId
+            && other.currency === cleanCurrency && other.status !== 'WITHDRAWN' && other.status !== 'REJECTED') {
+            return false;
+          }
+        }
       }
       const now = Date.now();
       attemptsMap.set(cleanKey, {
@@ -324,6 +521,8 @@ export class DurableAttemptStore {
         receipt: null,
         error: null,
         condition_mismatches: [],
+        withdrawal_requested: null,
+        revisions: [],
         created_at: now,
         updated_at: now,
       });
@@ -332,7 +531,8 @@ export class DurableAttemptStore {
     });
   }
 
-  async record(key, status, { receipt = null, error = null, condition_mismatches = null } = {}) {
+  async record(key, status, { receipt = null, error = null, condition_mismatches = null, not_sent_proof = null } = {}) {
+    this._assertUsable();
     if (typeof key !== 'string' || !key.trim()) {
       throw new Error('UNKNOWN_ATTEMPT_KEY');
     }
@@ -340,27 +540,118 @@ export class DurableAttemptStore {
     if (!VALID_STATUSES.has(status)) {
       throw new Error(`INVALID_ATTEMPT_STATUS:${status}`);
     }
+    if (receipt !== null && receipt !== undefined && !isPlainObject(receipt)) {
+      throw new Error('RECEIPT_MUST_BE_OBJECT');
+    }
     return this._withLock(() => {
+      this._assertUsable();
       const attemptsMap = this._readDataUnlocked();
       const entry = attemptsMap.get(cleanKey);
       if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
-      if (TERMINAL_STATUSES.has(entry.status) && entry.status !== status) {
-        throw new Error('TERMINAL_ATTEMPT_IMMUTABLE');
+      const hasReceipt = receipt !== null && receipt !== undefined;
+      const hasError = error !== null && error !== undefined;
+      const hasMismatches = Array.isArray(condition_mismatches);
+
+      if (TERMINAL_STATUSES.has(entry.status)) {
+        if (entry.status !== status) throw new Error('TERMINAL_ATTEMPT_IMMUTABLE');
+        // Same terminal status: only an identical repeat is accepted and it
+        // does not touch the sealed entry. A different value never replaces it.
+        if ((hasReceipt && !deepEqual(entry.receipt, receipt))
+          || (hasError && entry.error !== String(error))
+          || (hasMismatches && !deepEqual(entry.condition_mismatches, condition_mismatches))) {
+          throw new Error('TERMINAL_ATTEMPT_CONFLICT');
+        }
+        return JSON.parse(JSON.stringify(entry));
+      }
+      if (entry.status === status) {
+        return JSON.parse(JSON.stringify(entry));
+      }
+      let allowed = TRANSITIONS.get(entry.status) || new Set();
+      if (entry.status === 'SUBMITTING' && status === 'WITHDRAWN') {
+        if (!isPlainObject(not_sent_proof) || not_sent_proof.forwarded_requests !== 0) {
+          throw new Error('NOT_SENT_PROOF_REQUIRED');
+        }
+        allowed = new Set([...allowed, 'WITHDRAWN']);
+      }
+      if (!allowed.has(status)) {
+        throw new Error(`ILLEGAL_TRANSITION:${entry.status}->${status}`);
+      }
+      if (status === 'ACCEPTED' && receiptIdentifier(receipt) === null) {
+        throw new Error('RECEIPT_REQUIRED');
       }
       entry.status = status;
-      if (receipt !== null && receipt !== undefined) {
-        entry.receipt = JSON.parse(JSON.stringify(receipt));
+      if (hasReceipt) entry.receipt = JSON.parse(JSON.stringify(receipt));
+      if (hasError) entry.error = String(error);
+      if (hasMismatches) entry.condition_mismatches = [...condition_mismatches];
+      if (status === 'WITHDRAWN' && isPlainObject(not_sent_proof)) {
+        entry.not_sent_proof = JSON.parse(JSON.stringify(not_sent_proof));
       }
-      if (error !== null && error !== undefined) {
-        entry.error = String(error);
-      }
-      if (Array.isArray(condition_mismatches)) {
-        entry.condition_mismatches = [...condition_mismatches];
-      }
-      entry.updated_at = Date.now();
+      entry.updated_at = Math.max(Date.now(), entry.created_at);
+      validateEntry(cleanKey, entry);
       this._writeDataUnlocked(attemptsMap);
       return JSON.parse(JSON.stringify(entry));
     });
+  }
+
+  // A withdrawal request is a flag, not a phase change: the owner of a running
+  // attempt reads it at the POST boundary. A terminal attempt cannot be
+  // withdrawn any more.
+  async requestWithdrawal(key, reason = 'withdrawn') {
+    this._assertUsable();
+    if (typeof key !== 'string' || !key.trim()) throw new Error('UNKNOWN_ATTEMPT_KEY');
+    const cleanKey = key.trim();
+    return this._withLock(() => {
+      this._assertUsable();
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
+      if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
+      if (TERMINAL_STATUSES.has(entry.status)) return false;
+      if (!entry.withdrawal_requested) {
+        entry.withdrawal_requested = { at: Date.now(), reason: String(reason).slice(0, 200) };
+        entry.updated_at = Math.max(Date.now(), entry.created_at);
+        this._writeDataUnlocked(attemptsMap);
+      }
+      return true;
+    });
+  }
+
+  // Explicit audit mechanism: corrections never rewrite the sealed attempt.
+  async addRevision(key, { kind, data }) {
+    this._assertUsable();
+    if (typeof kind !== 'string' || !kind.trim() || !isPlainObject(data) || Object.keys(data).length === 0) {
+      throw new Error('REVISION_KIND_AND_DATA_REQUIRED');
+    }
+    const cleanKey = String(key || '').trim();
+    return this._withLock(() => {
+      this._assertUsable();
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
+      if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
+      const revisions = Array.isArray(entry.revisions) ? entry.revisions : [];
+      const seq = revisions.length + 1;
+      entry.revisions = [...revisions, { seq, kind: kind.trim(), data: JSON.parse(JSON.stringify(data)), created_at: Date.now() }];
+      validateEntry(cleanKey, entry);
+      this._writeDataUnlocked(attemptsMap);
+      return seq;
+    });
+  }
+
+  // Last-resort fact preservation when the store cannot be written after the
+  // bookmaker already answered. Best effort by design; the caller reports it.
+  appendEmergencyJournal(record) {
+    let fd = null;
+    try {
+      fd = fs.openSync(this.journalPath, fs.constants.O_CREAT | fs.constants.O_APPEND | fs.constants.O_WRONLY, 0o600);
+      fs.writeFileSync(fd, JSON.stringify({ ...record, journaled_at: Date.now() }) + '\n', 'utf8');
+      fs.fsyncSync(fd);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch {}
+      }
+    }
   }
 
   getAttempt(key) {
@@ -404,6 +695,46 @@ export class OneWinLiveCart {
     this.submitSentCount = 0;
     this.blocked = [];
     this.blocked_reasons = [];
+    this._runtime = null;
+    this._signalGuardAbort = null;
+  }
+
+  // Asynchronous part of the boundary decision. It runs BEFORE the synchronous
+  // freshness check so that nothing awaited can age the evidence afterwards.
+  async _cancelledAtBoundary() {
+    const runtime = this._runtime;
+    if (!runtime || typeof runtime.cancelled !== 'function') return true;
+    try {
+      return Boolean(await runtime.cancelled());
+    } catch {
+      return true; // fail closed
+    }
+  }
+
+  // Synchronous: no await between the clock read and the caller forwarding the
+  // request. Re-reads the clock, the minimum expiry of ALL evidence and the
+  // durable attempt state (withdrawal / terminal / store health).
+  _postBoundaryCheck(expected) {
+    const runtime = this._runtime;
+    if (!runtime || typeof runtime.now !== 'function') return { ok: false, reason: 'runtime_context_missing' };
+    const store = this.attemptStore;
+    if (!store || store.isDurable !== true) return { ok: false, reason: 'store_not_durable_at_post_boundary' };
+    let attempt;
+    try {
+      attempt = store.getAttempt(expected.idempotencyKey);
+    } catch {
+      return { ok: false, reason: 'attempt_state_unreadable_at_post_boundary' };
+    }
+    if (!attempt || attempt.status !== 'SUBMITTING') {
+      return { ok: false, reason: 'attempt_state_not_submitting_at_post_boundary' };
+    }
+    if (attempt.withdrawal_requested) return { ok: false, reason: 'withdrawal_requested_at_post_boundary' };
+    const current = runtime.now();
+    if (typeof current !== 'number' || !Number.isFinite(current) || current <= 0) {
+      return { ok: false, reason: 'invalid_clock_at_post_boundary' };
+    }
+    if (!(current < expected.expiresAt)) return { ok: false, reason: 'expired_at_post_boundary' };
+    return { ok: true };
   }
 
   _validateMakeBetRequestBody(body, expected) {
@@ -500,6 +831,23 @@ export class OneWinLiveCart {
         if (!validation.ok) {
           this.blocked.push(pathName);
           this.blocked_reasons.push(validation.reason);
+          this._signalGuardAbort?.(validation.reason);
+          return route.abort();
+        }
+
+        // Freshness is decided at the moment of permission, not at an earlier
+        // await: withdrawal first (awaited), then one synchronous check of the
+        // clock, the earliest evidence expiry and the durable attempt state.
+        let boundary;
+        if (await this._cancelledAtBoundary()) {
+          boundary = { ok: false, reason: 'cancelled_at_post_boundary' };
+        } else {
+          boundary = this._postBoundaryCheck(expected);
+        }
+        if (!boundary.ok) {
+          this.blocked.push(pathName);
+          this.blocked_reasons.push(boundary.reason);
+          this._signalGuardAbort?.(boundary.reason);
           return route.abort();
         }
 
@@ -534,6 +882,9 @@ export class OneWinLiveCart {
     if (plan.live_submit_contract_verified !== true && plan.account_conditions?.live_submit_contract_verified !== true) {
       throw new Error('LIVE_SUBMIT_CONTRACT_UNVERIFIED');
     }
+    if (typeof plan.live_submit_contract_source !== 'string' || !plan.live_submit_contract_source.trim()) {
+      throw new Error('LIVE_SUBMIT_CONTRACT_UNVERIFIED');
+    }
 
     const idempotencyKey = typeof plan.idempotency_key === 'string' ? plan.idempotency_key.trim() : '';
     if (!idempotencyKey || idempotencyKey.length > 128) {
@@ -544,13 +895,30 @@ export class OneWinLiveCart {
     if (typeof currentNow !== 'number' || !Number.isFinite(currentNow) || currentNow <= 0) {
       throw new Error('INVALID_CLOCK');
     }
-    const expiresAt = plan.expires_at;
-    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt) || expiresAt <= 0) {
+    const planExpiry = plan.expires_at;
+    if (typeof planExpiry !== 'number' || !Number.isFinite(planExpiry) || planExpiry <= 0) {
       throw new Error('EXPIRES_AT_REQUIRED');
     }
-    if (currentNow >= expiresAt) {
+    if (currentNow >= planExpiry) {
       throw new Error('TASK_EXPIRED');
     }
+    // Every piece of evidence the order rests on carries its own absolute
+    // expiry; the plan may never outlive the earliest of them.
+    const expiries = plan.evidence?.expiries;
+    if (!isPlainObject(expiries)) {
+      throw new Error('EVIDENCE_EXPIRIES_REQUIRED');
+    }
+    for (const name of REQUIRED_EXPIRIES) {
+      if (!isFinitePositive(expiries[name])) throw new Error(`EVIDENCE_EXPIRY_REQUIRED:${name}`);
+    }
+    const earliestEvidence = Math.min(...REQUIRED_EXPIRIES.map((name) => expiries[name]));
+    if (planExpiry > earliestEvidence + 1e-9) {
+      throw new Error('PLAN_EXPIRY_EXCEEDS_EVIDENCE');
+    }
+    if (currentNow >= earliestEvidence) {
+      throw new Error('EVIDENCE_EXPIRED');
+    }
+    const expiresAt = Math.min(planExpiry, earliestEvidence);
 
     if (typeof plan.currency !== 'string' || plan.currency.trim() !== 'USDT') {
       throw new Error('UNSUPPORTED_CURRENCY');
@@ -591,9 +959,12 @@ export class OneWinLiveCart {
       throw new Error('AXES_MISMATCH:keys');
     }
     for (const k of expKeys) {
-      if (expectedAxes[k] !== selectionAxes[k]) {
+      if (!deepEqual(expectedAxes[k], selectionAxes[k])) {
         throw new Error(`AXES_MISMATCH:${k}`);
       }
+    }
+    if (isPlainObject(expectedAxes.payout_rule) && expectedAxes.payout_rule.status !== 'proven') {
+      throw new Error('PAYOUT_RULE_UNVERIFIED');
     }
 
     const acct = plan.account_conditions;
@@ -603,7 +974,8 @@ export class OneWinLiveCart {
     if (acct.logged_in !== true) {
       throw new Error('ACCOUNT_NOT_LOGGED_IN');
     }
-    if (acct.account_identity_verified !== true) {
+    if (acct.account_identity_verified !== true
+      || typeof acct.account_identity_source !== 'string' || !acct.account_identity_source.trim()) {
       throw new Error('ACCOUNT_IDENTITY_UNVERIFIED');
     }
     if (acct.currency !== 'USDT') {
@@ -644,6 +1016,22 @@ export class OneWinLiveCart {
     return { idempotencyKey, stake, expiresAt, selection };
   }
 
+  // Persist a post-send outcome. A recording failure never hides the bookmaker's
+  // answer: the receipt is kept in the result and in the emergency journal, the
+  // attempt key stays claimed and the failure is flagged for the caller.
+  async recordPostSend(result, key, status, detail) {
+    try {
+      await this.attemptStore.record(key, status, detail);
+    } catch (recordError) {
+      result.durable_record_failed = true;
+      result.durable_record_error = String(recordError.message || recordError).slice(0, 300);
+      const journaled = typeof this.attemptStore.appendEmergencyJournal === 'function'
+        ? this.attemptStore.appendEmergencyJournal({ key, status, receipt: detail.receipt ?? null, error: detail.error ?? null })
+        : false;
+      result.emergency_journal_written = journaled;
+    }
+  }
+
   async run(plan, { now = () => Date.now() / 1000, screenshotPre, screenshotPost, cancelled = async () => false } = {}) {
     if (this.busy) throw new Error('ONEWIN_LIVE_CART_BUSY');
     if (!this.liveEnabled || process.env.ONEWIN_AUTOMATION_LIVE_ENABLED !== 'true') {
@@ -668,10 +1056,14 @@ export class OneWinLiveCart {
       maxStake: this.maxBudgetUsdt,
     });
     if (!claimed) {
-      throw new Error('DUPLICATE_IDEMPOTENCY_KEY');
+      // Same key: replay of a known attempt. Different key: another live intent
+      // already owns this native selection.
+      throw new Error(this.attemptStore.getAttempt(idempotencyKey)
+        ? 'DUPLICATE_IDEMPOTENCY_KEY' : 'DUPLICATE_SELECTION_ATTEMPT');
     }
 
     this.busy = true;
+    this._runtime = { now, cancelled };
     const started = performance.now();
     const result = {
       ok: false,
@@ -766,36 +1158,58 @@ export class OneWinLiveCart {
           res => /\/bets\/make-bet-v2(?:\/|$)/i.test(new URL(res.url()).pathname) && res.request().method() === 'POST',
           { timeout: 15000 }
         );
+        responsePromise.catch(() => {});
+        const guardAborted = new Promise((resolve) => { this._signalGuardAbort = resolve; });
 
-        // Bind exact expected body parameters to route handler before clicking submit
+        // Bind exact expected body parameters to route handler before clicking submit.
+        // The expiry carried here is the earliest of ALL evidence expiries; the
+        // route guard re-reads the clock against it at the moment of permission.
         this.armedExpectation = {
+          idempotencyKey,
           eventId: selection.event_id,
           marketId: selection.market_id,
           selectionId: selection.selection_id,
           stake,
           currency: 'USDT',
           price: selection.price,
+          expiresAt,
         };
         this.submitArmed = true;
 
         let response;
         try {
           await submitBtn.click({ timeout: 5000 });
-          response = await responsePromise;
+          response = await Promise.race([
+            responsePromise,
+            guardAborted.then((reason) => { throw new Error(`GUARD_ABORT:${reason}`); }),
+          ]);
         } catch (sendErr) {
           this.submitArmed = false;
           this.armedExpectation = null;
+          this._signalGuardAbort = null;
+          if (this.submitSentCount === 0) {
+            // Nothing was forwarded: the guard (or the page) stopped the request.
+            const reason = this.blocked_reasons.length ? this.blocked_reasons[this.blocked_reasons.length - 1]
+              : String(sendErr.message || sendErr).slice(0, 200);
+            result.status = 'ABORTED_PRE_SUBMIT';
+            await this.attemptStore.record(idempotencyKey, 'WITHDRAWN', {
+              error: `SUBMIT_ABORTED_BEFORE_SEND:${reason}`,
+              not_sent_proof: { forwarded_requests: 0, reason },
+            });
+            throw new Error(`SUBMIT_ABORTED_BEFORE_SEND:${reason}`);
+          }
           result.status = 'INDETERMINATE';
-          await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: String(sendErr.message || sendErr) });
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: String(sendErr.message || sendErr) });
           throw sendErr;
         }
         this.submitArmed = false;
         this.armedExpectation = null;
+        this._signalGuardAbort = null;
 
         const body = await response.json().catch(() => null);
         if (!isPlainObject(body)) {
           result.status = 'INDETERMINATE';
-          await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: 'INVALID_RESPONSE_BODY' });
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: 'INVALID_RESPONSE_BODY' });
           throw new Error('PLACEMENT_INDETERMINATE:INVALID_RESPONSE_BODY');
         }
 
@@ -806,12 +1220,12 @@ export class OneWinLiveCart {
             result.status = 'REJECTED';
             result.rejection_code = errCode;
             result.rejection_meta = errObj.meta || null;
-            await this.attemptStore.record(idempotencyKey, 'REJECTED', { error: errCode, receipt: body });
+            await this.recordPostSend(result, idempotencyKey, 'REJECTED', { error: errCode, receipt: body });
             throw new Error(`BOOKMAKER_REJECTED:${errCode}`);
           }
           const indCode = errCode || 'UNKNOWN_ERROR_CODE';
           result.status = 'INDETERMINATE';
-          await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: indCode, receipt: body });
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: indCode, receipt: body });
           throw new Error(`PLACEMENT_INDETERMINATE:${indCode}`);
         }
 
@@ -821,7 +1235,7 @@ export class OneWinLiveCart {
           || (typeof rawBetId === 'string' && rawBetId.trim().length > 0);
         if (!success || !validBetId) {
           result.status = 'INDETERMINATE';
-          await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: 'MISSING_BET_ID', receipt: body });
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: 'MISSING_BET_ID', receipt: body });
           throw new Error('PLACEMENT_INDETERMINATE:MISSING_BET_ID');
         }
 
@@ -877,7 +1291,7 @@ export class OneWinLiveCart {
           result.error = `ACCEPTED_CONDITION_MISMATCH:${mismatches.join(',')}`;
         }
 
-        await this.attemptStore.record(idempotencyKey, 'ACCEPTED', {
+        await this.recordPostSend(result, idempotencyKey, 'ACCEPTED', {
           receipt: result.receipt,
           condition_mismatches: mismatches,
           error: result.error || null,
@@ -894,13 +1308,18 @@ export class OneWinLiveCart {
     } catch (error) {
       this.submitArmed = false;
       this.armedExpectation = null;
-      if (result.status !== 'ACCEPTED' && result.status !== 'REJECTED' && result.status !== 'INDETERMINATE') {
+      if (!['ACCEPTED', 'REJECTED', 'INDETERMINATE', 'ABORTED_PRE_SUBMIT'].includes(result.status)) {
         if (this.submitSentCount > 0) {
           result.status = 'INDETERMINATE';
-          await this.attemptStore.record(idempotencyKey, 'INDETERMINATE', { error: String(error.message || error) }).catch(() => {});
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: String(error.message || error) });
         } else {
           result.status = 'ABORTED_PRE_SUBMIT';
-          await this.attemptStore.record(idempotencyKey, 'WITHDRAWN', { error: String(error.message || error) }).catch(() => {});
+          // Nothing was forwarded. A potential-submit attempt (SUBMITTING) can only
+          // be withdrawn with that proof; earlier phases need none.
+          await this.attemptStore.record(idempotencyKey, 'WITHDRAWN', {
+            error: String(error.message || error),
+            not_sent_proof: { forwarded_requests: this.submitSentCount, reason: 'aborted_before_send' },
+          }).catch(() => {});
         }
       }
       if (!result.error) {
@@ -928,6 +1347,8 @@ export class OneWinLiveCart {
       result.submit_sent_count = this.submitSentCount;
       result.blocked_submit_requests = this.blocked.length;
       result.blocked_reasons = [...this.blocked_reasons];
+      this._runtime = null;
+      this._signalGuardAbort = null;
       this.busy = false;
     }
     return result;
