@@ -54,7 +54,8 @@ def instant(value):
 
 def confirmed(quote):
     if quote.get('source_ts') is not None: return instant(quote['source_ts'])
-    if quote.get('observed_at_origin') not in {'source','aggregator'} or quote.get('observed_at_semantics')!='provider_confirmation':
+    origin=quote.get('observed_at_origin')
+    if not isinstance(origin,str) or origin not in {'source','aggregator'} or quote.get('observed_at_semantics')!='provider_confirmation':
         raise CommonTaskError('quote provenance missing')
     observed=instant(quote.get('observed_at'))
     proof=quote.get('state_confirmation')
@@ -82,18 +83,19 @@ def _valid_clock_argument(value: Any) -> bool:
             and math.isfinite(value) and value > 0)
 
 
-def _finite_positive(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    number = float(value)
-    return number if math.isfinite(number) and number > 0 else None
-
-
 def _finite_number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    number = float(value)
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
     return number if math.isfinite(number) else None
+
+
+def _finite_positive(value: Any) -> float | None:
+    number = _finite_number(value)
+    return number if number is not None and number > 0 else None
 
 
 def _describe_blockers(blockers: list[str], info: dict[str, Any]) -> str:
@@ -122,6 +124,10 @@ def _ttl(is_live: Any) -> int:
 
 
 def task_from_value(pair:dict[str,Any], outcome:dict[str,Any], *, stake:float, idempotency_key:str, now:float):
+    if not _valid_clock_argument(now):raise CommonTaskError('invalid clock',['invalid_clock'])
+    if not isinstance(pair.get('isLive'),bool):
+        # Unknown liveness would silently select the 60 s prematch TTL.
+        raise CommonTaskError('isLive must be a boolean',['invalid_task'])
     if pair.get('first',{}).get('bookmaker','').lower()!='bia' or pair.get('second',{}).get('bookmaker','').lower() not in {'1win','onewin'}:
         raise CommonTaskError('explicit BIA reference + 1win donor required')
     if not pair.get('event_id') or not outcome.get('outcome') or not idempotency_key or len(idempotency_key)>128:
@@ -165,7 +171,7 @@ def task_from_value(pair:dict[str,Any], outcome:dict[str,Any], *, stake:float, i
         if donor_axes is None:raise AxesContractError('axes_missing','verified axes required')
         normalised=normalise_axes(donor_axes,contexts=(ref,donor))
         contract.update(status='complete',schema=normalised['schema'],facts=public_facts(normalised))
-        if normalised['facts']['payout_rule']['status']!='proven':blockers.append('payout_rule_unverified')
+        if normalised['facts']['payout_rule']['status']=='unverified':blockers.append('payout_rule_unverified')
     except AxesContractError as exc:
         contract.update(status='incomplete',reason=exc.code)
         blockers.append(exc.code if exc.code.startswith('axes_') else f'axes_incomplete:{exc.code}')
@@ -191,7 +197,13 @@ class DurableDryRunStore:
         self._db.execute('PRAGMA busy_timeout=5000')
         self._db.execute('CREATE TABLE IF NOT EXISTS tasks (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, revision INTEGER NOT NULL)')
     def close(self):self._db.close()
+    def status(self,key):
+        """Current durable status of a prepared task, or None when it was never prepared."""
+        with self._lock:
+            row=self._db.execute('SELECT status FROM tasks WHERE key=?',(key,)).fetchone()
+        return row[0] if row else None
     def prepare(self,task,*,now):
+        if not _valid_clock_argument(now):raise CommonTaskError('invalid clock',['invalid_clock'])
         if task.get('mode')!='dry_run' or task.get('execution_ready') is not False:raise CommonTaskError('dry-run boundary required')
         if now>=task['expires_at']:raise CommonTaskError('expired task')
         raw=json.dumps(task,sort_keys=True,allow_nan=False,separators=(',',':'))
@@ -254,10 +266,13 @@ def _quote_checks(task:dict[str,Any],quote:Any,*,now:float,ttl:int,stake:float|N
     if expected_odds is None or quoted_odds is None or quoted_odds!=expected_odds:binding.append('price')
     # The parser may name the market/selection it saw; the executor's own native
     # identity has to be the same object, otherwise the market identity changed.
-    for parser_key,native_key,label in (('provider_market_key','native_market_id','market_id'),
+    for parser_key,native_key,label in (('provider_event_key','native_event_id','event_id'),
+                                        ('provider_market_key','native_market_id','market_id'),
                                         ('provider_selection_key','native_selection_id','selection_id')):
         claimed=execution.get(parser_key)
         if claimed is not None and str(claimed)!=str(quote.get(native_key)):binding.append(label)
+    if expected.get('source_event_key') is not None and str(expected.get('source_event_key'))!=str(quote.get('native_event_id')):
+        binding.append('event_id') if 'event_id' not in binding else None
     if binding:
         blockers.append('executor_binding_mismatch');info['binding_mismatch']=binding
     try:
@@ -268,11 +283,11 @@ def _quote_checks(task:dict[str,Any],quote:Any,*,now:float,ttl:int,stake:float|N
         contexts=(task.get('reference_quote'),expected)
         expected_n=normalise_axes(expected_axes,contexts=contexts)
         actual_n=normalise_axes(quote_axes,contexts=(quote,),require_registry=False)
-        differing=compare_facts(expected_n,actual_n)
+        differing=compare_facts(expected_n,actual_n,compare_payout=True)
         if differing:
             blockers.append('axes_mismatch');info['axes_mismatch']=differing
-        if expected_n['facts']['payout_rule']['status']!='proven':blockers.append('payout_rule_unverified')
-        info['expected_axes']=expected_n;info['actual_axes']=actual_n
+        if expected_n['facts']['payout_rule']['status']=='unverified':blockers.append('payout_rule_unverified')
+        info['expected_axes']=expected_n;info['actual_axes']=actual_n;info['quote_axes']=quote_axes
         if expected_n['schema']==PLATFORM_SCHEMA:
             # The executor must not echo the parser's axes: the settlement facts have to be
             # derivable from the bookmaker's own native market text (closed world; unknown
@@ -410,6 +425,7 @@ class DurableAttemptStore:
         fd = os.open(target, os.O_CREAT | os.O_WRONLY, 0o600)
         os.close(fd)
         target.chmod(0o600)
+        self._path = target
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         try:
             self._db.execute("PRAGMA busy_timeout=5000")
@@ -436,9 +452,20 @@ class DurableAttemptStore:
             if self._db.execute("PRAGMA synchronous").fetchone()[0] != 2:
                 raise CommonTaskError("durable store cannot use synchronous=FULL")
             self._install_seals()
+            stat = os.stat(target)
+            self._file_identity = (stat.st_dev, stat.st_ino)
         except BaseException:
             self._db.close()
             raise
+
+    def _assert_file_present(self) -> None:
+        """The file is the only history: a deleted or replaced file is corruption, not "no attempts"."""
+        try:
+            stat = os.stat(self._path)
+        except OSError:
+            raise self._corrupt('*', 'store file vanished after initialisation') from None
+        if (stat.st_dev, stat.st_ino) != self._file_identity:
+            raise self._corrupt('*', 'store file was replaced after initialisation')
 
     # -- integrity ---------------------------------------------------------
     def _install_seals(self) -> None:
@@ -581,9 +608,9 @@ class DurableAttemptStore:
             raise CommonTaskError("payload must be JSON-serializable without NaN") from exc
 
         sel = payload.get("selection") if isinstance(payload.get("selection"), dict) else {}
-        event_id = str(payload.get("event_id") or sel.get("event_id") or "") or None
-        market_id = str(payload.get("market_id") or payload.get("odds_group_id") or sel.get("market_id") or "") or None
-        selection_id = str(payload.get("selection_id") or sel.get("selection_id") or "") or None
+        event_id = str(payload.get("event_id") or sel.get("event_id") or "").strip() or None
+        market_id = str(payload.get("market_id") or payload.get("odds_group_id") or sel.get("market_id") or "").strip() or None
+        selection_id = str(payload.get("selection_id") or sel.get("selection_id") or "").strip() or None
         raw_odds = payload.get("expected_odds") or payload.get("odds") or sel.get("price")
         expected_odds = float(raw_odds) if isinstance(raw_odds, (int, float)) and not isinstance(raw_odds, bool) and math.isfinite(raw_odds) else None
 
@@ -592,6 +619,7 @@ class DurableAttemptStore:
             raise CommonTaskError("invalid claim clock")
 
         with self._lock:
+            self._assert_file_present()
             self._db.execute("BEGIN IMMEDIATE")
             try:
                 row = self._db.execute(
@@ -605,11 +633,14 @@ class DurableAttemptStore:
                 if event_id and market_id and selection_id:
                     # One live intent per native selection: another key for the same
                     # selection that is in flight, accepted or unresolved blocks this
-                    # claim (a rejected or withdrawn attempt does not).
+                    # claim. Only a rejected or withdrawn attempt, or one an operator
+                    # reconciled as "not placed" with evidence, releases it. The currency
+                    # label is deliberately not part of the identity.
                     other = self._db.execute(
                         "SELECT key FROM attempts WHERE event_id = ? AND market_id = ? AND selection_id = ? "
-                        "AND currency = ? AND status NOT IN ('WITHDRAWN','REJECTED') LIMIT 1",
-                        (event_id, market_id, selection_id, clean_currency),
+                        "AND status NOT IN ('WITHDRAWN','REJECTED') "
+                        "AND key NOT IN (SELECT key FROM attempt_revisions WHERE kind = 'reconciled_not_placed') LIMIT 1",
+                        (event_id, market_id, selection_id),
                     ).fetchone()
                     if other is not None:
                         self._db.execute("ROLLBACK")
@@ -641,6 +672,7 @@ class DurableAttemptStore:
         if error is not None and not isinstance(error, str):
             raise CommonTaskError("error must be text")
         with self._lock:
+            self._assert_file_present()
             self._db.execute("BEGIN IMMEDIATE")
             try:
                 row = self._db.execute(
@@ -700,10 +732,19 @@ class DurableAttemptStore:
         if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts) or ts <= 0:
             raise CommonTaskError("invalid revision clock")
         with self._lock:
+            self._assert_file_present()
             self._db.execute("BEGIN IMMEDIATE")
             try:
-                if self._db.execute("SELECT 1 FROM attempts WHERE key = ?", (key,)).fetchone() is None:
+                current = self._db.execute("SELECT status FROM attempts WHERE key = ?", (key,)).fetchone()
+                if current is None:
                     raise CommonTaskError("unknown attempt key")
+                if kind.strip() == 'reconciled_not_placed':
+                    # Releases the selection: needs a named operator, a concrete evidence
+                    # reference and an attempt that was not accepted.
+                    if not (_non_empty_text(data.get('operator')) and _non_empty_text(data.get('evidence'))):
+                        raise CommonTaskError("reconciled_not_placed needs operator and evidence")
+                    if current[0] == 'ACCEPTED':
+                        raise CommonTaskError("an accepted attempt cannot be reconciled as not placed")
                 seq = self._db.execute("SELECT COALESCE(MAX(seq),0)+1 FROM attempt_revisions WHERE key = ?", (key,)).fetchone()[0]
                 self._db.execute("INSERT INTO attempt_revisions VALUES (?, ?, ?, ?, ?)", (key, seq, kind.strip(), raw, float(ts)))
                 self._db.execute("COMMIT")
@@ -717,6 +758,7 @@ class DurableAttemptStore:
 
     def get_attempt(self, key: str) -> dict[str, Any] | None:
         with self._lock:
+            self._assert_file_present()
             row = self._db.execute(
                 "SELECT key, status, stake, currency, event_id, market_id, selection_id, expected_odds, payload, receipt, error, created_at, updated_at FROM attempts WHERE key = ?",
                 (key,),
@@ -741,15 +783,44 @@ def _evidence_clock(quote:Any):
     return confirmed(quote)
 
 
+_TASK_BLOCKER_EXACT=frozenset({'executor_identity_and_conditions_unverified','payout_rule_unverified'})
+
+
 def _task_blockers(task:dict[str,Any],*,now:float,ttl:int):
-    """Task level checks plus absolute expiry of every embedded evidence."""
+    """Task level checks plus absolute expiry of every embedded evidence.
+
+    The task is re-validated at permission time: a stored task is data and may
+    have been edited since ``task_from_value`` built it.
+    """
     blockers:list[str]=[];expiries:dict[str,float]={}
     expires=_finite_positive(task.get('expires_at'))
     if task.get('schema_version')!='automation-task.v1' or task.get('kind')!='value' or not _non_empty_text(task.get('idempotency_key')):
         blockers.append('invalid_task')
+    if not isinstance(task.get('is_live'),bool):blockers.append('invalid_task')
     if expires is None or now>=expires:blockers.append('task_expired_or_missing_expiry')
     if expires is not None:expiries['task']=expires
     if task.get('reference_source')!='BIA' or task.get('donor_source')!='1win':blockers.append('invalid_task')
+    reference,donor,margins=task.get('reference_quote'),task.get('quote'),task.get('margin_quotes')
+    # identity and prices of the evidence the task rests on
+    def lowered(quote,field):
+        value=quote.get(field) if isinstance(quote,dict) else None
+        return value.lower() if isinstance(value,str) else None
+    identity_ok=isinstance(reference,dict) and isinstance(donor,dict) and isinstance(margins,list) and bool(margins)
+    if identity_ok:
+        identity_ok=(lowered(reference,'source')=='bia' and lowered(donor,'source') in {'1win','onewin'}
+                     and _non_empty_text(reference.get('source_event_key')))
+    if identity_ok:
+        for quote in margins:
+            if not (isinstance(quote,dict) and lowered(quote,'source')=='bia'
+                    and str(quote.get('source_event_key'))==str(reference.get('source_event_key'))):
+                identity_ok=False
+        for quote in (reference,donor,*margins):
+            price=_finite_number(quote.get('odds')) if isinstance(quote,dict) else None
+            if price is None or price<=1:identity_ok=False
+    if not identity_ok:blockers.append('task_identity_mismatch')
+    declared=task.get('execution_blockers')
+    if not isinstance(declared,list) or any(not isinstance(b,str) or not (b in _TASK_BLOCKER_EXACT or b.startswith('axes_')) for b in declared):
+        blockers.append('task_blocked_externally')
     unproven=False;future=False
     def clock_of(quote):
         nonlocal unproven
@@ -757,15 +828,14 @@ def _task_blockers(task:dict[str,Any],*,now:float,ttl:int):
             return _evidence_clock(quote)
         except CommonTaskError:
             unproven=True;return None
-    donor=clock_of(task.get('quote'));reference=clock_of(task.get('reference_quote'))
-    margins=task.get('margin_quotes')
+    donor_clock=clock_of(donor);reference_clock=clock_of(reference)
     margin_clocks=[]
     if isinstance(margins,list) and margins:
         for item in margins:
             value=clock_of(item)
             if value is not None:margin_clocks.append(value)
     else:unproven=True
-    for name,value in (('donor',donor),('reference',reference)):
+    for name,value in (('donor',donor_clock),('reference',reference_clock)):
         if value is not None:
             expiries[name]=value+ttl
             future=future or value>now
@@ -809,17 +879,34 @@ def _account_blockers(account:Any,*,stake:float|None,now:float,ttl:int):
 
 
 def evaluate_live_conditions(task:Any,quote:Any,account_state:Any,*,now:float|None=None,max_stake:float|None=None,
-                             diagnostic_only:bool=False)->dict[str,Any]:
+                             diagnostic_only:bool=False,task_store:Any=None,
+                             require_declared_payout:bool=False)->dict[str,Any]:
     """The only decision function behind readiness and permission.  Never raises."""
+    try:
+        return _evaluate(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only,
+                         task_store=task_store,require_declared_payout=require_declared_payout)
+    except Exception as exc:  # noqa: BLE001 - the contract is "returns blockers, never raises"
+        return {'execution_ready':False,'execution_blockers':[f'evaluation_error:{type(exc).__name__}'],'details':{}}
+
+
+def _evaluate(task,quote,account_state,*,now,max_stake,diagnostic_only,task_store,require_declared_payout):
     clock=datetime.now(timezone.utc).timestamp() if now is None else now
     if not _valid_clock_argument(clock):
         return {'execution_ready':False,'execution_blockers':['invalid_clock'],'details':{}}
     if not isinstance(task,dict):
         return {'execution_ready':False,'execution_blockers':['invalid_task'],'details':{}}
-    ttl=_ttl(task.get('is_live'))
+    ttl=_ttl(task.get('is_live') if isinstance(task.get('is_live'),bool) else True)
     blockers:list[str]=[];details:dict[str,Any]={'now':clock,'ttl':ttl}
     task_blockers,expiries=_task_blockers(task,now=clock,ttl=ttl)
     blockers.extend(task_blockers)
+    if task_store is not None:
+        # A withdrawal / terminal reconciliation of the prepared task is part of the permission.
+        try:
+            state=task_store.status(task.get('idempotency_key'))
+        except Exception:  # noqa: BLE001
+            state='UNREADABLE'
+        if state is None:blockers.append('task_not_prepared')
+        elif state in {'WITHDRAWN','EXPIRED','INDETERMINATE','REJECTED','UNREADABLE'}:blockers.append('task_withdrawn_or_terminal')
     stake=_finite_positive(task.get('stake'))
     if stake is None:blockers.append('invalid_stake')
     else:
@@ -837,6 +924,9 @@ def evaluate_live_conditions(task:Any,quote:Any,account_state:Any,*,now:float|No
             blockers.append('unverified_live_submit_wire_contract')
         if quote.get('currency')!='USDT' or (isinstance(account_state,dict) and quote.get('currency')!=account_state.get('currency')):
             blockers.append('executor_currency_mismatch')
+    if require_declared_payout and 'expected_axes' in info \
+            and info['expected_axes']['facts']['payout_rule']['status']=='not_declared':
+        blockers.append('payout_rule_not_declared')
     if 'executor_clock' in info:expiries['executor_quote']=info['executor_clock']+ttl
     details.update(info);details['expiries']=expiries
     deduplicated=list(dict.fromkeys(blockers))
@@ -844,9 +934,11 @@ def evaluate_live_conditions(task:Any,quote:Any,account_state:Any,*,now:float|No
 
 
 def assess_live_readiness(task:Any,quote:Any=None,account_state:Any=None,*,now:float|None=None,max_stake:float|None=None,
-                          diagnostic_only:bool=False)->dict[str,Any]:
+                          diagnostic_only:bool=False,task_store:Any=None,
+                          require_declared_payout:bool=False)->dict[str,Any]:
     """Presentation view of :func:`evaluate_live_conditions` (same decision)."""
-    verdict=evaluate_live_conditions(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only)
+    verdict=evaluate_live_conditions(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only,
+                                     task_store=task_store,require_declared_payout=require_declared_payout)
     return {'execution_ready':verdict['execution_ready'],'execution_blockers':verdict['execution_blockers']}
 
 
@@ -854,14 +946,16 @@ _REQUIRED_EXPIRIES=('task','donor','reference','margins','executor_quote','accou
 
 
 def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],account_state:dict[str,Any],*,now:float,
-                                     max_stake:float|None=None,diagnostic_only:bool=False)->dict[str,Any]:
+                                     max_stake:float|None=None,diagnostic_only:bool=False,task_store:Any=None,
+                                     require_declared_payout:bool=False)->dict[str,Any]:
     """Permission view of :func:`evaluate_live_conditions`.
 
     Raises ``CommonTaskError`` carrying the same blockers that
     :func:`assess_live_readiness` reports for the same inputs.
     """
     if not _valid_clock_argument(now):raise CommonTaskError('invalid clock',['invalid_clock'])
-    verdict=evaluate_live_conditions(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only)
+    verdict=evaluate_live_conditions(task,quote,account_state,now=now,max_stake=max_stake,diagnostic_only=diagnostic_only,
+                                     task_store=task_store,require_declared_payout=require_declared_payout)
     if not verdict['execution_ready']:
         raise CommonTaskError('live execution conditions not met: '
                               +_describe_blockers(verdict['execution_blockers'],verdict['details']),
@@ -888,7 +982,7 @@ def verify_live_execution_conditions(task:dict[str,Any],quote:dict[str,Any],acco
         'schema_version':'automation-live-order.v1','live':True,'execution_ready':True,'execution_blockers':[],
         'idempotency_key':task['idempotency_key'],'event_id':quote['native_event_id'],'market_id':quote['native_market_id'],
         'selection_id':quote['native_selection_id'],'odds':quote['odds'],'stake':float(task['stake']),'currency':'USDT',
-        'axes':copy.deepcopy(quote.get('market_axes') or quote.get('axes')),
+        'axes':copy.deepcopy(details['quote_axes']),
         'expected_axes':copy.deepcopy(_task_expected_axes(task)),
         'axes_adapter_version':AXES_ADAPTER_VERSION,'axes_schema':actual['schema'],
         'settlement_facts':public_facts(actual),'expected_settlement_facts':public_facts(expected),

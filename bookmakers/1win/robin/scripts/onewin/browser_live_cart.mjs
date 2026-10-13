@@ -22,6 +22,7 @@ const REQUIRED_EXPIRIES = ['task', 'donor', 'reference', 'margins', 'executor_qu
 // "the write failed". They are accepted only through an explicit opt-in and the
 // resulting durability level is recorded; EIO and everything else is fatal.
 const UNSUPPORTED_DIR_SYNC_CODES = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP']);
+const BET_API_HOSTS = new Set(['api-gateway.top-parser.com']);
 const KNOWN_REJECTIONS = new Set([
   'not_enough_funds', 'zero_bet', 'odd_closed', 'odd_not_found',
   'currency_not_supported', 'odd_cf_changed', 'min_bet_amount',
@@ -59,6 +60,12 @@ function receiptIdentifier(receipt) {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) return String(value);
   }
   return null;
+}
+
+function isReconciledNotPlaced(entry) {
+  return Array.isArray(entry.revisions) && entry.revisions.some((rev) => rev.kind === 'reconciled_not_placed'
+    && isPlainObject(rev.data) && typeof rev.data.operator === 'string' && rev.data.operator.trim()
+    && typeof rev.data.evidence === 'string' && rev.data.evidence.trim());
 }
 
 // Lock files are mutual-exclusion state between live processes (stale ones are
@@ -175,6 +182,8 @@ export class DurableAttemptStore {
     this.durabilityLevel = 'directory_fsync';
     this.syncFailure = null;
     this._legacyRaw = null;
+    this._tombstones = new Map();
+    this._initialized = false;
     this.isDurable = false;
     try {
       this._initOnDisk();
@@ -183,6 +192,7 @@ export class DurableAttemptStore {
       // simply not durable. Every other failure aborts construction.
       if (!(this.syncFailure && this.syncFailure.unsupported)) throw err;
     }
+    this._initialized = true;
     this.isDurable = this.syncFailure === null;
   }
 
@@ -333,6 +343,9 @@ export class DurableAttemptStore {
   _readDataUnlocked() {
     this._legacyRaw = null;
     if (!fs.existsSync(this.filePath)) {
+      // After a successful initialisation the file is the only history there is: its
+      // absence is corruption (deleted, rolled back or replaced), never "no attempts".
+      if (this._initialized) throw corrupt('MISSING_AFTER_INIT');
       return new Map();
     }
     const raw = fs.readFileSync(this.filePath, 'utf8');
@@ -350,6 +363,17 @@ export class DurableAttemptStore {
     }
 
     const attemptsMap = new Map();
+    this._tombstones = new Map();
+    if (parsed.tombstones !== undefined) {
+      if (!Array.isArray(parsed.tombstones)) throw corrupt('INVALID_TOMBSTONES');
+      for (const item of parsed.tombstones) {
+        if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== 'string' || !item[0].trim()
+          || !isPlainObject(item[1]) || !isFinitePositive(item[1].at) || typeof item[1].reason !== 'string') {
+          throw corrupt('INVALID_TOMBSTONE');
+        }
+        this._tombstones.set(item[0], item[1]);
+      }
+    }
     if (Array.isArray(parsed.entries)) {
       for (const item of parsed.entries) {
         if (!Array.isArray(item) || item.length !== 2 || typeof item[0] !== 'string' || !item[0].trim() || !isPlainObject(item[1])) {
@@ -400,7 +424,9 @@ export class DurableAttemptStore {
     let tmpCreated = false;
     try {
       const entries = Array.from(attemptsMap.entries());
-      const raw = JSON.stringify({ version: 1, entries }, null, 2) + '\n';
+      const document = { version: 1, entries };
+      if (this._tombstones.size > 0) document.tombstones = Array.from(this._tombstones.entries());
+      const raw = JSON.stringify(document, null, 2) + '\n';
       stage = 'backup_legacy';
       this._backupLegacyUnlocked();
       stage = 'open_tmp';
@@ -485,24 +511,29 @@ export class DurableAttemptStore {
     }
 
     const sel = isPlainObject(payload.selection) ? payload.selection : {};
-    const eventId = String(payload.event_id || sel.event_id || '') || null;
-    const marketId = String(payload.market_id || sel.market_id || '') || null;
-    const selectionId = String(payload.selection_id || sel.selection_id || '') || null;
+    const eventId = String(payload.event_id || sel.event_id || '').trim() || null;
+    const marketId = String(payload.market_id || sel.market_id || '').trim() || null;
+    const selectionId = String(payload.selection_id || sel.selection_id || '').trim() || null;
     const rawOdds = payload.expected_odds ?? payload.odds ?? sel.price;
     const expectedOdds = typeof rawOdds === 'number' && Number.isFinite(rawOdds) && rawOdds > 0 ? rawOdds : null;
 
     return this._withLock(() => {
       this._assertUsable();
       const attemptsMap = this._readDataUnlocked();
+      if (this._tombstones.has(cleanKey)) {
+        throw new Error('WITHDRAWN_BEFORE_CLAIM');
+      }
       if (attemptsMap.has(cleanKey)) {
         return false;
       }
       if (eventId && marketId && selectionId) {
         // One live intent per native selection: another key for the same selection
-        // that is in flight, accepted or unresolved blocks this claim.
+        // that is in flight, accepted or unresolved blocks this claim. Only a rejected or
+        // withdrawn attempt, or one an operator reconciled as "not placed" with evidence,
+        // releases it. (The currency label is deliberately not part of the identity.)
         for (const other of attemptsMap.values()) {
           if (other.event_id === eventId && other.market_id === marketId && other.selection_id === selectionId
-            && other.currency === cleanCurrency && other.status !== 'WITHDRAWN' && other.status !== 'REJECTED') {
+            && other.status !== 'WITHDRAWN' && other.status !== 'REJECTED' && !isReconciledNotPlaced(other)) {
             return false;
           }
         }
@@ -604,7 +635,14 @@ export class DurableAttemptStore {
       this._assertUsable();
       const attemptsMap = this._readDataUnlocked();
       const entry = attemptsMap.get(cleanKey);
-      if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
+      if (!entry) {
+        // Withdrawn before it was ever claimed: remember it so that the claim is refused.
+        if (!this._tombstones.has(cleanKey)) {
+          this._tombstones.set(cleanKey, { at: Date.now(), reason: String(reason).slice(0, 200) });
+          this._writeDataUnlocked(attemptsMap);
+        }
+        return true;
+      }
       if (TERMINAL_STATUSES.has(entry.status)) return false;
       if (!entry.withdrawal_requested) {
         entry.withdrawal_requested = { at: Date.now(), reason: String(reason).slice(0, 200) };
@@ -627,6 +665,15 @@ export class DurableAttemptStore {
       const attemptsMap = this._readDataUnlocked();
       const entry = attemptsMap.get(cleanKey);
       if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
+      if (kind.trim() === 'reconciled_not_placed') {
+        // Releases the selection, so it needs a named operator, a concrete evidence
+        // reference and an attempt that was not accepted.
+        if (typeof data.operator !== 'string' || !data.operator.trim()
+          || typeof data.evidence !== 'string' || !data.evidence.trim()) {
+          throw new Error('REVISION_EVIDENCE_REQUIRED');
+        }
+        if (entry.status === 'ACCEPTED') throw new Error('REVISION_REFUSED_FOR_ACCEPTED');
+      }
       const revisions = Array.isArray(entry.revisions) ? entry.revisions : [];
       const seq = revisions.length + 1;
       entry.revisions = [...revisions, { seq, kind: kind.trim(), data: JSON.parse(JSON.stringify(data)), created_at: Date.now() }];
@@ -697,6 +744,9 @@ export class OneWinLiveCart {
     this.blocked_reasons = [];
     this._runtime = null;
     this._signalGuardAbort = null;
+    this._guardHandler = null;
+    this._guardedPage = null;
+    this.unexpectedMutations = 0;
   }
 
   // Asynchronous part of the boundary decision. It runs BEFORE the synchronous
@@ -790,72 +840,84 @@ export class OneWinLiveCart {
   }
 
   async installGuard() {
-    if (this.guarded) return;
+    if (this.guarded && typeof this._guardHandler === 'function' && this._guardedPage === this.page) return;
+    // The flag is derived from a handler that really is installed on this page.
+    this.guarded = false;
+    this._guardHandler = null;
+    const handler = (route) => this._handleRoute(route);
+    await this.page.route('**/*', handler);
+    this._guardHandler = handler;
+    this._guardedPage = this.page;
     this.guarded = true;
-    await this.page.route('**/*', async route => {
-      const request = route.request();
-      const pathName = new URL(request.url()).pathname;
-      const isForbiddenMutation = /\/bets\/(?:refund|cashout|sell)(?:\/|$)/i.test(pathName)
-        || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager|express-ordinary)/i.test(pathName);
-      if (request.method() === 'POST' && isForbiddenMutation) {
-        this.blocked.push(pathName);
-        this.blocked_reasons.push('forbidden_mutation_path');
-        return route.abort();
+  }
+
+  async _handleRoute(route) {
+    const request = route.request();
+    const url = new URL(request.url());
+    const pathName = url.pathname;
+    const method = String(request.method()).toUpperCase();
+    const isRead = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+    const refuse = (reason, signal = true) => {
+      this.blocked.push(pathName);
+      this.blocked_reasons.push(reason);
+      if (signal) this._signalGuardAbort?.(reason);
+      return route.abort();
+    };
+
+    const isForbiddenMutation = /\/bets\/(?:refund|cashout|sell)(?:\/|$)/i.test(pathName)
+      || /(?:place.?bet|bet.?place|create.?bet|bets?\/create|bets?\/submit|wager|express-ordinary|\/ordinary(?:\/|$))/i.test(pathName);
+    if (!isRead && isForbiddenMutation) return refuse('forbidden_mutation_path', false);
+
+    const isMakeBet = /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName);
+    // Any other placement endpoint (another version, another verb, another host) is unknown
+    // territory: it is stopped instead of being waved through.
+    if (!isRead && !isMakeBet && /make-?bet/i.test(pathName)) return refuse('unknown_bet_endpoint');
+
+    if (isMakeBet && !isRead) {
+      const expected = this.armedExpectation;
+      this.submitArmed = false;
+      this.armedExpectation = null;
+
+      if (method !== 'POST' || !BET_API_HOSTS.has(url.hostname)) {
+        return refuse(`make_bet_request_not_expected:${method}:${url.hostname}`);
       }
+      if (!expected || this.submitSentCount >= 1) return refuse('unarmed_or_duplicate_make_bet_post', false);
 
-      if (request.method() === 'POST' && /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName)) {
-        const expected = this.armedExpectation;
-        this.submitArmed = false;
-        this.armedExpectation = null;
-
-        if (!expected || this.submitSentCount >= 1) {
-          this.blocked.push(pathName);
-          this.blocked_reasons.push('unarmed_or_duplicate_make_bet_post');
-          return route.abort();
-        }
-
-        let postBody = null;
-        try {
-          if (typeof request.postDataJSON === 'function') {
-            postBody = request.postDataJSON();
-          } else {
-            postBody = JSON.parse(request.postData() || '{}');
-          }
-        } catch {
-          this.blocked.push(pathName);
-          this.blocked_reasons.push('invalid_json_in_post_body');
-          return route.abort();
-        }
-
-        const validation = this._validateMakeBetRequestBody(postBody, expected);
-        if (!validation.ok) {
-          this.blocked.push(pathName);
-          this.blocked_reasons.push(validation.reason);
-          this._signalGuardAbort?.(validation.reason);
-          return route.abort();
-        }
-
-        // Freshness is decided at the moment of permission, not at an earlier
-        // await: withdrawal first (awaited), then one synchronous check of the
-        // clock, the earliest evidence expiry and the durable attempt state.
-        let boundary;
-        if (await this._cancelledAtBoundary()) {
-          boundary = { ok: false, reason: 'cancelled_at_post_boundary' };
+      let postBody = null;
+      try {
+        if (typeof request.postDataJSON === 'function') {
+          postBody = request.postDataJSON();
         } else {
-          boundary = this._postBoundaryCheck(expected);
+          postBody = JSON.parse(request.postData() || '{}');
         }
-        if (!boundary.ok) {
-          this.blocked.push(pathName);
-          this.blocked_reasons.push(boundary.reason);
-          this._signalGuardAbort?.(boundary.reason);
-          return route.abort();
-        }
-
-        this.submitSentCount += 1;
-        return route.fallback();
+      } catch {
+        return refuse('invalid_json_in_post_body', false);
       }
+
+      const validation = this._validateMakeBetRequestBody(postBody, expected);
+      if (!validation.ok) return refuse(validation.reason);
+
+      // Freshness is decided at the moment of permission, not at an earlier
+      // await: withdrawal first (awaited), then one synchronous check of the
+      // clock, the earliest evidence expiry and the durable attempt state.
+      let boundary;
+      if (await this._cancelledAtBoundary()) {
+        boundary = { ok: false, reason: 'cancelled_at_post_boundary' };
+      } else {
+        boundary = this._postBoundaryCheck(expected);
+      }
+      if (!boundary.ok) return refuse(boundary.reason);
+
+      this.submitSentCount += 1;
       return route.fallback();
-    });
+    }
+
+    if (!isRead && this.armedExpectation) {
+      // While the submit is armed nothing but the expected POST may mutate anything.
+      this.unexpectedMutations += 1;
+      return refuse('unexpected_mutation_while_armed');
+    }
+    return route.fallback();
   }
 
   slip() {
@@ -963,8 +1025,12 @@ export class OneWinLiveCart {
         throw new Error(`AXES_MISMATCH:${k}`);
       }
     }
-    if (isPlainObject(expectedAxes.payout_rule) && expectedAxes.payout_rule.status !== 'proven') {
-      throw new Error('PAYOUT_RULE_UNVERIFIED');
+    for (const facts of [expectedAxes, selectionAxes]) {
+      // 'proven' = declared by the sources, 'not_declared' = nothing declared (recorded as
+      // such); a missing or unverified rule never reaches the bookmaker.
+      if (!isPlainObject(facts.payout_rule) || !['proven', 'not_declared'].includes(facts.payout_rule.status)) {
+        throw new Error('PAYOUT_RULE_UNVERIFIED');
+      }
     }
 
     const acct = plan.account_conditions;
@@ -1047,22 +1113,43 @@ export class OneWinLiveCart {
       throw new Error('DURABLE_ATTEMPT_STORE_REQUIRED');
     }
 
+    // The single diagnostic test bet is spent per cart: refuse before anything is claimed.
+    if (this.diagnosticMode && this.submitSentCount >= 1) {
+      const replayKey = typeof plan?.idempotency_key === 'string' ? plan.idempotency_key.trim() : '';
+      throw new Error(replayKey && this.attemptStore.getAttempt(replayKey)
+        ? 'DUPLICATE_IDEMPOTENCY_KEY' : 'DIAGNOSTIC_BUDGET_SPENT');
+    }
+
     const { idempotencyKey, stake, expiresAt, selection } = this._validateLivePlan(plan, now);
 
-    const claimed = await this.attemptStore.claim(idempotencyKey, {
-      stake,
-      currency: 'USDT',
-      payload: plan,
-      maxStake: this.maxBudgetUsdt,
-    });
+    // Busy is taken before the first await so that two concurrent runs cannot both pass.
+    this.busy = true;
+    this.blocked = [];
+    this.blocked_reasons = [];
+    this.unexpectedMutations = 0;
+    this.submitArmed = false;
+    this.armedExpectation = null;
+    if (!this.diagnosticMode) this.submitSentCount = 0; // counters are per run in production mode
+    let claimed = false;
+    try {
+      claimed = await this.attemptStore.claim(idempotencyKey, {
+        stake,
+        currency: 'USDT',
+        payload: plan,
+        maxStake: this.maxBudgetUsdt,
+      });
+    } catch (claimError) {
+      this.busy = false;
+      throw claimError;
+    }
     if (!claimed) {
+      this.busy = false;
       // Same key: replay of a known attempt. Different key: another live intent
       // already owns this native selection.
       throw new Error(this.attemptStore.getAttempt(idempotencyKey)
         ? 'DUPLICATE_IDEMPOTENCY_KEY' : 'DUPLICATE_SELECTION_ATTEMPT');
     }
 
-    this.busy = true;
     this._runtime = { now, cancelled };
     const started = performance.now();
     const result = {
@@ -1090,6 +1177,7 @@ export class OneWinLiveCart {
 
     try {
       await this.installGuard();
+      if (!this.guarded || typeof this._guardHandler !== 'function') throw new Error('GUARD_NOT_INSTALLED');
       if (await cancelled()) throw new Error('CANCELLED');
 
       await phase('navigation', async () => {
@@ -1213,6 +1301,16 @@ export class OneWinLiveCart {
           throw new Error('PLACEMENT_INDETERMINATE:INVALID_RESPONSE_BODY');
         }
 
+        const carriedSuccess = isPlainObject(body.result) && isPlainObject(body.result.success) ? body.result.success : null;
+        const carriedId = carriedSuccess?.betId;
+        const carriesBet = carriedSuccess !== null && ((typeof carriedId === 'number' && Number.isFinite(carriedId) && carriedId > 0)
+          || (typeof carriedId === 'string' && carriedId.trim().length > 0));
+        if (Array.isArray(body.errors) && body.errors.length > 0 && (carriesBet || carriedSuccess !== null)) {
+          // An error next to a (possible) bet is not a rejection: the bet may exist.
+          result.status = 'INDETERMINATE';
+          await this.recordPostSend(result, idempotencyKey, 'INDETERMINATE', { error: 'MIXED_ERROR_AND_SUCCESS', receipt: body });
+          throw new Error('PLACEMENT_INDETERMINATE:MIXED_ERROR_AND_SUCCESS');
+        }
         if (Array.isArray(body.errors) && body.errors.length > 0) {
           const errObj = isPlainObject(body.errors[0]) ? body.errors[0] : {};
           const errCode = typeof errObj.code === 'string' && errObj.code.trim() ? errObj.code.trim() : '';

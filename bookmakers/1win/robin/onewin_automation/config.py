@@ -63,5 +63,6 @@ class OneWinAutomationConfig:
             price_tolerance=_bounded_float("ONEWIN_AUTOMATION_PRICE_TOLERANCE", 0.001, 0.0),
             max_stake=_bounded_float("ONEWIN_AUTOMATION_MAX_STAKE", 50.0, 0.01),
             default_stake=_optional_bounded_float("ONEWIN_AUTOMATION_DEFAULT_STAKE", 0.01),
-            live_enabled=_env_flag("ONEWIN_AUTOMATION_LIVE_ENABLED", False),
+            # Exactly "true" (case-insensitive), like the Node executor: no 1/yes/on aliases.
+            live_enabled=os.getenv("ONEWIN_AUTOMATION_LIVE_ENABLED", "").strip().lower() == "true",
         )

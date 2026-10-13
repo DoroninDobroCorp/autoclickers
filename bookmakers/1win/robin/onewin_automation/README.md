@@ -146,8 +146,16 @@ next to the adapter version. Scope (regulation / overtime) comes from an explici
 diagnostic: they can be queued but never dry-verified or executed. Executability follows the donor
 (1win) leg only; BIA reference axes are retained for audit.
 
-Executor evidence must be in the same vocabulary. Echoing the parser's axes is not independent
-evidence - see `native_axes.py` (when present) for the deriver from native 1win market text.
+Executor evidence must be in the same vocabulary and must come with the native 1win market text
+(`quote.native_market`: sport id, group label, selection, numeric line, outcome code, participant
+names). `native_axes.py` is a closed-world deriver from that text; its facts must agree with both the
+task and the executor's own axes, and anything it cannot prove (hockey scope without an OT label,
+volleyball, tennis beyond the winner, combos, players) stays a blocker. Echoing the parser's axes is
+not independent evidence.
+
+Payout rule: `proven` means a source declared a result variant / draw payout, `not_declared` means
+nothing was declared (recorded as such, never promoted to proven), `unverified` blocks. Policy callers
+can demand declared rules with `require_declared_payout=True`.
 
 Durable attempts (`DurableAttemptStore` in Python, `DurableAttemptStore` in
 `scripts/onewin/browser_live_cart.mjs`): terminal records are sealed, phase order is enforced, a
@@ -155,6 +163,14 @@ potential submit can only be withdrawn with proof that nothing was forwarded, pe
 validated when the store opens, one live intent per native selection is allowed unless the earlier
 attempt was rejected or withdrawn, and corrections are appended as audit revisions. The JS store
 reports every write/sync error and becomes non-durable (blocking placement) when one occurs.
+
+Python placement gate: `PlacementGate` requires a verified order by default. `place` takes
+`live_inputs={task, quote, account_state}` and recomputes the decision itself with its own clock (before
+the claim and again after the SUBMITTING record); a pre-built order object is never trusted, the
+transport receives a whitelist built from the verified order, and a receipt next to an error is
+INDETERMINATE, not a rejection. The legacy behaviour needs `require_verified_order=False` explicitly.
+`LegacyOneWinAdapter`-style paths (`value-executor/OneWinAdapter.js`) refuse live placement unless an
+owner opts in twice.
 
 Queue route: `queue_adapter.py` converts the item the real Node `TaskBuilder`/`TasksManager`
 stores into `automation-task.v1`; `cart_plan.py` turns a verified order into the plan consumed by

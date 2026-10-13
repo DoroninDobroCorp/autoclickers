@@ -255,7 +255,8 @@ class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
     calls.append(payload)
     return {"ok": True, "status": "ACCEPTED", "receipt_id": "rcpt-101", "amount": payload["stake"]}
 
-   gate = PlacementGate(enabled=True, config=cfg, transport=transport, attempt_store=store, max_stake=50.0)
+   gate = PlacementGate(enabled=True, config=cfg, transport=transport, attempt_store=store, max_stake=50.0,
+                        require_verified_order=False)  # explicit legacy mode (2026-10-13)
 
    # Missing stake rejected without calling transport
    with self.assertRaises(BasketValidationError):
@@ -290,7 +291,8 @@ class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
    # Compatibility adapter injects default_stake into transport and attempt store
    compat_gate = LegacyPlacementGateAdapter(
-    enabled=True, config=cfg, transport=transport, attempt_store=store, default_stake=1.0
+    enabled=True, config=cfg, transport=transport, attempt_store=store, default_stake=1.0,
+    require_verified_order=False
    )
    compat_res = await compat_gate.place({"idempotency_key": "gate-compat-1"})
    self.assertEqual(compat_res["receipt_id"], "rcpt-101")
@@ -298,7 +300,8 @@ class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
    self.assertEqual(calls[-1]["stake"], 1.0)
 
    # Diagnostic factory strictly caps at 1.0 USDT
-   diag_gate = PlacementGate.for_diagnostic_test(transport=transport, attempt_store=store)
+   diag_gate = PlacementGate.for_diagnostic_test(transport=transport, attempt_store=store,
+                                                 config=OneWinAutomationConfig(live_enabled=True, max_stake=1.0))
    with self.assertRaises(BasketValidationError):
     await diag_gate.place({"idempotency_key": "diag-over", "stake": 2.0})
 
@@ -313,7 +316,8 @@ class PlacementGateIntegrationTests(unittest.IsolatedAsyncioTestCase):
     calls.append(payload)
     raise TimeoutError("connection dropped after send")
 
-   gate = PlacementGate(enabled=True, config=cfg, transport=timeout_transport, attempt_store=store)
+   gate = PlacementGate(enabled=True, config=cfg, transport=timeout_transport, attempt_store=store,
+                        require_verified_order=False)
    with self.assertRaises(PlacementIndeterminate):
     await gate.place({"idempotency_key": "gate-timeout-1", "stake": 1.0})
 

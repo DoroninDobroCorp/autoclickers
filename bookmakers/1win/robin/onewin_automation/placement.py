@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import datetime, timezone
 import inspect
 import math
@@ -9,6 +10,7 @@ import re
 from typing import Any, Protocol
 
 from .basket import BasketValidationError
+from .common import CommonTaskError, verify_live_execution_conditions
 from .config import OneWinAutomationConfig
 
 
@@ -76,10 +78,21 @@ class PlacementGate:
         attempt_store: AttemptStore | None = None,
         max_stake: float | None = None,
         default_stake: float | None = None,
-        require_verified_order: bool = False,
+        require_verified_order: bool = True,
         clock: Callable[[], float] | None = None,
+        task_store: Any = None,
+        diagnostic_only: bool = False,
     ):
+        """``require_verified_order=True`` (default): the gate recomputes the live decision itself.
+
+        ``place`` then needs ``payload['live_inputs'] = {task, quote, account_state}`` and calls
+        ``verify_live_execution_conditions`` with its own clock, once before the claim and once
+        more after the SUBMITTING record. A pre-built "order" object is never trusted. The bare
+        legacy behaviour must be requested explicitly with ``require_verified_order=False``.
+        """
         self.require_verified_order = bool(require_verified_order)
+        self.diagnostic_only = bool(diagnostic_only)
+        self.task_store = task_store
         self._clock = clock or (lambda: datetime.now(timezone.utc).timestamp())
         self.config = config or OneWinAutomationConfig.from_env()
         self.enabled = bool(enabled and self.config.live_enabled)
@@ -88,6 +101,12 @@ class PlacementGate:
         self.max_stake = float(max_stake if max_stake is not None else self.config.max_stake)
         resolved_default = default_stake if default_stake is not None else self.config.default_stake
         self.default_stake = float(resolved_default) if resolved_default is not None else None
+        if self.enabled and self.require_verified_order:
+            store = attempt_store
+            if (store is None or getattr(store, "is_durable", False) is not True
+                    or not callable(getattr(store, "claim", None)) or not callable(getattr(store, "record_status", None))):
+                raise LivePlacementDisabled(
+                    "a verified-order gate needs a durable attempt store with claim and record_status")
 
     @classmethod
     def for_diagnostic_test(
@@ -97,56 +116,68 @@ class PlacementGate:
         attempt_store: AttemptStore,
         config: OneWinAutomationConfig | None = None,
         clock: Callable[[], float] | None = None,
+        task_store: Any = None,
     ) -> "PlacementGate":
         """Placement gate for the owner-authorized single 1 USDT diagnostic test.
 
-        It only places a payload that carries a verified ``automation-live-order.v1``
-        produced by ``verify_live_execution_conditions`` and re-checks the order's
-        absolute expiry after the SUBMITTING record, immediately before the transport.
+        The live switch comes from ``ONEWIN_AUTOMATION_LIVE_ENABLED`` (exactly ``true``) unless an
+        explicit config is passed, the budget is 1 USDT, and the decision is recomputed here.
         """
+        base = config or replace(OneWinAutomationConfig.from_env(), max_stake=1.0)
         return cls(
             enabled=True,
-            config=config or OneWinAutomationConfig(live_enabled=True, max_stake=1.0),
+            config=base,
             transport=transport,
             attempt_store=attempt_store,
             max_stake=1.0,
             require_verified_order=True,
             clock=clock,
+            task_store=task_store,
+            diagnostic_only=True,
         )
 
-    def _check_order(self, payload: dict[str, Any], key: str, stake: float, currency: str) -> dict[str, Any]:
-        order = payload.get("order")
-        if not isinstance(order, dict) or order.get("schema_version") != "automation-live-order.v1":
-            raise BasketValidationError("a verified automation-live-order.v1 is required")
-        if order.get("execution_ready") is not True or order.get("execution_blockers"):
-            raise BasketValidationError("the order is not execution ready")
-        if str(order.get("idempotency_key") or "") != key:
-            raise BasketValidationError("order idempotency_key does not match the payload")
-        order_stake = order.get("stake")
-        if isinstance(order_stake, bool) or not isinstance(order_stake, (int, float)) or abs(float(order_stake) - stake) > 1e-9:
-            raise BasketValidationError("order stake does not match the payload")
-        if str(order.get("currency") or "").upper() != currency or currency != "USDT":
-            raise BasketValidationError("order currency does not match the payload")
-        for payload_key, order_key in (("event_id", "event_id"), ("market_id", "market_id"), ("selection_id", "selection_id")):
-            if payload_key in payload and str(payload[payload_key]) != str(order.get(order_key)):
-                raise BasketValidationError(f"order {order_key} does not match the payload")
-        expected_odds = payload.get("expected_odds", payload.get("odds"))
-        if expected_odds is not None:
-            order_odds = order.get("odds")
-            if isinstance(order_odds, bool) or not isinstance(order_odds, (int, float)) or float(order_odds) != float(expected_odds):
-                raise BasketValidationError("order odds do not match the payload")
-        self._assert_order_fresh(order)
+    _ALIAS_FIELDS = ("event_id", "market_id", "selection_id", "expected_odds", "odds", "amount", "order_id")
+
+    def _verify_inputs(self, payload: dict[str, Any], key: str, stake: float, currency: str) -> dict[str, Any]:
+        if "order" in payload:
+            raise BasketValidationError("a pre-built order object is not accepted; pass live_inputs")
+        if "selection" in payload or "odds_group_id" in payload:
+            raise BasketValidationError("nested selection / odds_group_id aliases are not accepted")
+        inputs = payload.get("live_inputs")
+        if (not isinstance(inputs, dict) or not isinstance(inputs.get("task"), dict)
+                or not isinstance(inputs.get("quote"), dict) or not isinstance(inputs.get("account_state"), dict)):
+            raise BasketValidationError("live_inputs {task, quote, account_state} are required")
+        try:
+            order = verify_live_execution_conditions(
+                inputs["task"], inputs["quote"], inputs["account_state"], now=self._clock(),
+                max_stake=self.max_stake, diagnostic_only=self.diagnostic_only, task_store=self.task_store)
+        except CommonTaskError as exc:
+            raise BasketValidationError(f"live conditions not met: {exc}") from exc
+        if order["idempotency_key"] != key:
+            raise BasketValidationError("payload idempotency_key does not match the verified task")
+        if abs(float(order["stake"]) - stake) > 1e-9:
+            raise BasketValidationError("payload stake does not match the verified task")
+        if order["currency"] != currency:
+            raise BasketValidationError("payload currency does not match the verified order")
+        aliases = {"event_id": order["event_id"], "market_id": order["market_id"],
+                   "selection_id": order["selection_id"], "expected_odds": order["odds"], "odds": order["odds"],
+                   "amount": order["stake"]}
+        for name, expected in aliases.items():
+            if name in payload:
+                value = payload[name]
+                if isinstance(expected, float) or name == "amount":
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) != float(expected):
+                        raise BasketValidationError(f"payload {name} conflicts with the verified order")
+                elif str(value) != str(expected):
+                    raise BasketValidationError(f"payload {name} conflicts with the verified order")
         return order
 
-    def _assert_order_fresh(self, order: dict[str, Any]) -> None:
-        expires_at = order.get("expires_at")
-        current = self._clock()
-        if (isinstance(expires_at, bool) or not isinstance(expires_at, (int, float)) or not math.isfinite(expires_at)
-                or isinstance(current, bool) or not isinstance(current, (int, float)) or not math.isfinite(current)
-                or current <= 0):
-            raise BasketValidationError("order expiry or clock is invalid")
-        if current >= expires_at:
-            raise BasketValidationError("order EXPIRED before the transport")
+    @staticmethod
+    def _transport_payload(order: dict[str, Any]) -> dict[str, Any]:
+        """Whitelist built from the verified order only: nothing else may reach the transport."""
+        return {"idempotency_key": order["idempotency_key"], "event_id": order["event_id"],
+                "market_id": order["market_id"], "selection_id": order["selection_id"], "odds": order["odds"],
+                "stake": order["stake"], "currency": order["currency"]}
 
     async def _record_status(self, key: str, status: str, **kwargs: Any) -> None:
         if self.attempt_store is not None and hasattr(self.attempt_store, "record_status"):
@@ -215,18 +246,12 @@ class PlacementGate:
 
         order = None
         if self.require_verified_order:
-            order = self._check_order(payload, key, stake_val, currency)
-
-        normalized = dict(payload)
-        normalized["stake"] = stake_val
-        normalized["currency"] = currency
-        if order is not None:
-            # The attempt must always carry the native identity the order was verified for,
-            # so that the store can refuse a second intent on the same selection.
-            for field in ("event_id", "market_id", "selection_id"):
-                normalized.setdefault(field, order[field])
-            if "expected_odds" not in normalized and "odds" not in normalized:
-                normalized["expected_odds"] = order["odds"]
+            order = self._verify_inputs(payload, key, stake_val, currency)
+            normalized = self._transport_payload(order)
+        else:
+            normalized = dict(payload)
+            normalized["stake"] = stake_val
+            normalized["currency"] = currency
 
         # 4. Atomic claim with full metadata
         try:
@@ -250,11 +275,12 @@ class PlacementGate:
         # 5. Record SUBMITTING stage prior to network transmission
         await self._record_status(key, "SUBMITTING")
         if order is not None:
-            # Freshness is decided at the moment of permission, after the await above.
+            # Permission is decided again at its own moment, after the await above, on a fresh clock.
             try:
-                self._assert_order_fresh(order)
+                self._verify_inputs(payload, key, stake_val, currency)
             except BasketValidationError as exc:
-                await self._record_status(key, "WITHDRAWN", error=str(exc), not_sent_proof={"forwarded_requests": 0})
+                await self._record_status(key, "WITHDRAWN", error=f"EXPIRED_OR_CHANGED_BEFORE_TRANSPORT: {exc}",
+                                          not_sent_proof={"forwarded_requests": 0})
                 raise
 
         # 6. Execute transport
@@ -278,11 +304,14 @@ class PlacementGate:
         # Check explicit bookmaker rejection
         errors = result.get("errors")
         err_code = str(errors[0].get("code") or "") if isinstance(errors, list) and errors and isinstance(errors[0], dict) else ""
-        if (
-            status in {"REJECTED", "DECLINED"}
-            or code in {"REJECTED", "DECLINED"}
-            or err_code in self.KNOWN_REJECTIONS
-        ):
+        rejection_signal = (status in {"REJECTED", "DECLINED"} or code in {"REJECTED", "DECLINED"}
+                            or err_code in self.KNOWN_REJECTIONS)
+        bet_signal = result.get("ok") is True or bool(str(result.get("receipt_id") or result.get("bet_id") or "").strip())
+        if rejection_signal and bet_signal:
+            # An error next to a (possible) bet is not a rejection: the bet may exist.
+            await self._record_outcome(key, "INDETERMINATE", receipt=result, error="MIXED_ERROR_AND_RECEIPT")
+            raise PlacementIndeterminate("1win answered with both an error and a bet receipt")
+        if rejection_signal:
             await self._record_outcome(key, "REJECTED", receipt=result, error=detail)
             raise PlacementRejected(detail)
 
@@ -332,4 +361,6 @@ class LegacyPlacementGateAdapter(PlacementGate):
     """
 
     def __init__(self, *, default_stake: float = 1.0, **kwargs: Any):
+        # The adapter exists for callers that predate verified orders; it is the explicit legacy name.
+        kwargs.setdefault("require_verified_order", False)
         super().__init__(default_stake=default_stake, **kwargs)

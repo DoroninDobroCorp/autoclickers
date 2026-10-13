@@ -161,7 +161,8 @@ class OneWinAdapter extends BettorAdapter {
             }
         } catch (e) {}
 
-        return this._cachedBalance || 100.0;
+        // Unknown stays unknown: a made-up balance would pass every funds check. Zero fails closed.
+        return Number.isFinite(this._cachedBalance) ? this._cachedBalance : 0;
     }
 
     // ==================== MATCH RESOLUTION ====================
@@ -319,6 +320,15 @@ class OneWinAdapter extends BettorAdapter {
         }
 
         // Live Placement Path
+        // This adapter has no verified order, no durable attempt store, no route guard and no
+        // receipt reconciliation. It is therefore never a live placement path unless an owner
+        // explicitly opts in twice (config + environment); the supported live executor is
+        // robin/scripts/onewin/browser_live_cart.mjs (OneWinLiveCart) fed by a verified order.
+        if (this.config.allowLegacyLivePlacement !== true || process.env.ONEWIN_AUTOMATION_LIVE_ENABLED !== 'true') {
+            const message = 'LEGACY_LIVE_PLACEMENT_DISABLED: use OneWinLiveCart with a verified order';
+            this.logger.log('⛔ [1win.placeBet] ' + message);
+            return { success: false, error: message, retryable: false };
+        }
         try {
             const { page } = await this._ensureContext();
             const eventUrl = match?.url || (this.baseUrl + '/bets/match/' + matchId);

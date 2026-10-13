@@ -30,6 +30,7 @@ function makeValidPlan(overrides = {}) {
     market: 'total',
     line: 60.5,
     side: 'under',
+    payout_rule: { status: 'not_declared', result_variant: null, draw_payout: null },
   };
   return {
     ok: true,
@@ -593,7 +594,8 @@ test('10. Rejects missing currency, missing/guessed axes, unverified readiness, 
     () => cart.run(makeValidPlan({ expected_axes: undefined }), { now: () => 1000 }),
     /AXES_REQUIRED/
   );
-  const guessedAxes = { period: 'full_time', scope: 'REG', unit: 'match_base_unit', market: 'total', line: 4.5, side: 'under' };
+  const guessedAxes = { period: 'full_time', scope: 'REG', unit: 'match_base_unit', market: 'total', line: 4.5, side: 'under',
+    payout_rule: { status: 'not_declared', result_variant: null, draw_payout: null } };
   await assert.rejects(
     () => cart.run(makeValidPlan({
       expected_axes: guessedAxes,

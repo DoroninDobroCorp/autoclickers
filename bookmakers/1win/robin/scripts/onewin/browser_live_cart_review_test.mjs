@@ -17,7 +17,8 @@ function tmpStore(t, name = 'attempts.json') {
   return path.join(dir, name);
 }
 
-const AXES = { period: 'full_time', scope: 'REG', unit: 'goals', market: 'total', line: 60.5, side: 'under' };
+const AXES = { period: 'full_time', scope: 'REG', unit: 'goals', market: 'total', line: 60.5, side: 'under',
+  payout_rule: { status: 'not_declared', result_variant: null, draw_payout: null } };
 
 function plan(overrides = {}) {
   return {

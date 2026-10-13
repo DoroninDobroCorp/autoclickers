@@ -259,7 +259,7 @@ class RecordFailureAfterAcceptance(unittest.IsolatedAsyncioTestCase):
                 return {"ok": True, "status": "ACCEPTED", "receipt_id": "rcpt-77", "amount": payload["stake"]}
 
             gate = PlacementGate(enabled=True, config=OneWinAutomationConfig(live_enabled=True, max_stake=5.0),
-                                 transport=transport, attempt_store=store, max_stake=5.0)
+                                 transport=transport, attempt_store=store, max_stake=5.0, require_verified_order=False)
             with self.assertRaises(Exception) as ctx:
                 await gate.place({"idempotency_key": "gate-record-fail", "stake": 1.0, "currency": "USDT"})
             receipt = getattr(ctx.exception, "receipt", None)

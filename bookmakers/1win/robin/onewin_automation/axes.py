@@ -89,7 +89,10 @@ def derive_scope(sport: str, period: str, family: str) -> tuple[str, str]:
             return "ft", "regulation"
         if sport == "ice_hockey" and family in {"result", "dnb", "double_chance"}:
             return "ft", "regulation"
-    elif period in {"h1", "h2"} and sport in {"football", "handball", "basketball"}:
+    elif period in {"h1", "h2"} and sport in {"football", "handball"}:
+        return period, "regulation"
+    elif period == "h1" and sport == "basketball":
+        # A basketball second half may or may not include overtime: no source proves it.
         return period, "regulation"
     elif re.fullmatch(r"q[1-4]", period) and sport == "basketball":
         return period, "regulation"
@@ -108,13 +111,15 @@ def derive_scope(sport: str, period: str, family: str) -> tuple[str, str]:
 def payout_rule(*contexts: Any) -> dict[str, Any]:
     """Collect result variant / draw payout facts from quote contexts.
 
-    Unknown stays unknown: ``status`` is ``unverified`` when any context says
-    the draw rule is undisclosed or unverified.  Nothing is inferred from the
+    ``status`` is ``unverified`` when any context says the draw rule is
+    undisclosed or unverified, ``proven`` when a source explicitly declares a
+    result variant and/or draw payout, and ``not_declared`` when nothing is
+    said.  Absence is never reported as proven and nothing is inferred from the
     number of runners.
     """
     variants: set[str] = set()
     draws: set[str] = set()
-    status = "proven"
+    unverified = False
     for ctx in contexts:
         if not isinstance(ctx, dict):
             continue
@@ -127,16 +132,21 @@ def payout_rule(*contexts: Any) -> dict[str, Any]:
         pay_status = _text(ctx.get("payout_status"))
         if (pay_status in UNPROVEN_PAYOUT_STATUSES
                 or (isinstance(draw, str) and draw.strip().lower() in UNPROVEN_DRAW_PAYOUTS)):
-            status = "unverified"
+            unverified = True
     if len(variants) > 1:
         raise AxesContractError("payout_variant_conflict", f"conflicting result variants {sorted(variants)}")
-    if len(draws - UNPROVEN_DRAW_PAYOUTS) > 1:
+    declared_draws = draws - UNPROVEN_DRAW_PAYOUTS
+    if len(declared_draws) > 1:
         raise AxesContractError("payout_draw_conflict", f"conflicting draw payouts {sorted(draws)}")
-    return {
-        "status": status,
-        "result_variant": next(iter(variants), None),
-        "draw_payout": next(iter(draws - UNPROVEN_DRAW_PAYOUTS), None),
-    }
+    variant = next(iter(variants), None)
+    draw = next(iter(declared_draws), None)
+    if unverified:
+        status = "unverified"
+    elif variant or draw:
+        status = "proven"
+    else:
+        status = "not_declared"
+    return {"status": status, "result_variant": variant, "draw_payout": draw}
 
 
 def _normalise_platform(axes: dict[str, Any], require_registry: bool = True) -> dict[str, Any]:
@@ -236,8 +246,26 @@ def _same_line(left: Any, right: Any) -> bool:
     return abs(float(left) - float(right)) <= 1e-9
 
 
-def compare_facts(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
-    """Return the settlement facts on which two normalised objects differ."""
+def _payout_differs(expected: dict[str, Any], actual: dict[str, Any]) -> bool:
+    """The executor side must not weaken or change a declared payout rule."""
+    if actual.get("status") == "unverified":
+        return True
+    if expected.get("status") != "proven":
+        return False  # nothing declared on the task side: nothing to contradict
+    if actual.get("status") != "proven":
+        return True
+    for key in ("result_variant", "draw_payout"):
+        if expected.get(key) is not None and expected.get(key) != actual.get(key):
+            return True
+    return False
+
+
+def compare_facts(expected: dict[str, Any], actual: dict[str, Any], *, compare_payout: bool = False) -> list[str]:
+    """Return the settlement facts on which two normalised objects differ.
+
+    ``compare_payout`` is for executor-provided facts (which carry the executor's
+    own payout declaration); facts derived from native market text do not.
+    """
     differing: list[str] = []
     if expected.get("schema") != actual.get("schema"):
         return ["schema"]
@@ -251,6 +279,8 @@ def compare_facts(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]
     expected_type, actual_type = left.get("sportref_market_type"), right.get("sportref_market_type")
     if expected_type and actual_type and expected_type != actual_type:
         differing.append("sportref_market_type")
+    if compare_payout and _payout_differs(left.get("payout_rule") or {}, right.get("payout_rule") or {}):
+        differing.append("payout_rule")
     return differing
 
 
