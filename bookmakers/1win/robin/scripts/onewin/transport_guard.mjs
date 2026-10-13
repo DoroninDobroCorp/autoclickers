@@ -61,8 +61,23 @@ const SW_CANARY_PATH = '/__onewin-guard-canary-sw.js';
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+// Percent-encoding must not hide a placement path from the pattern ("make%2Dbet-v2"): the server
+// decodes, so the guard matches the raw and the decoded (up to three layers) form.
+function decodedForms(pathName) {
+  const forms = [String(pathName || '')];
+  let current = forms[0];
+  for (let i = 0; i < 3; i += 1) {
+    let next;
+    try { next = decodeURIComponent(current); } catch { break; }
+    if (next === current) break;
+    forms.push(next);
+    current = next;
+  }
+  return forms;
+}
+
 export function isMoneyPath(pathName) {
-  return MONEY_PATH.test(String(pathName || ''));
+  return decodedForms(pathName).some((form) => MONEY_PATH.test(form));
 }
 
 // Pure HTTP classification. `kind` is one of
@@ -83,6 +98,9 @@ export function classifyHttpRequest({ method, url, betApiOrigins = DEFAULT_BET_A
     return { kind: 'read' };
   }
   if (live && /\/bets\/make-bet-v2(?:\/|$)/i.test(pathName)) return { kind: 'submit_endpoint' };
+  if (live && decodedForms(pathName).some((form) => /\/bets\/make-bet-v2(?:\/|$)/i.test(form))) {
+    return { kind: 'blocked', reason: 'encoded_bet_endpoint', money: true };
+  }
   if (verb === 'POST' && origins.has(parsed.origin) && readOnlyPostPaths.includes(pathName)) return { kind: 'read_post' };
   if (verb === 'POST' && origins.has(parsed.origin) && Object.hasOwn(SESSION_BOOTSTRAP_POSTS, pathName)) {
     return SESSION_BOOTSTRAP_POSTS[pathName](postBody)

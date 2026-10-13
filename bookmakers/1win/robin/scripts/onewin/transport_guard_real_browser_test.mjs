@@ -61,6 +61,10 @@ test('HTTP classification: default deny for every non-read request that is not a
   assert.equal(c('GET', `${origin}/bets/make-bet-v2?amount=1`), 'blocked', 'a GET does not make a placement endpoint read-only');
   assert.equal(c('GET', `${origin}/fortune-wheel/make-roll`), 'blocked');
   assert.equal(c('GET', 'https://1win.pro/assets/wager-icon.svg'), 'read', 'static assets keep loading');
+  for (const encoded of ['/bets/make%2Dbet-v2', '/bets/make%252Dbet-v2', '/fortune-wheel/make%2Droll', '/%62ets/refund']) {
+    assert.equal(c('GET', `${origin}${encoded}`), 'blocked', `GET ${encoded}`);
+    assert.equal(c('POST', `${origin}${encoded}`, true), 'blocked', `POST ${encoded}`);
+  }
   assert.equal(c('POST', `${origin}/bets/make-bet-v2`, true), 'submit_endpoint');
   assert.equal(c('POST', `${origin}/bets/make-bet-v2`, false), 'blocked', 'the read-only cart has no submit endpoint');
   assert.ok(READ_ONLY_POST_PATHS.every((p) => /^\/[a-z]+\/get-[a-z0-9-]+$/.test(p)), 'only get-* reads are allow-listed');
