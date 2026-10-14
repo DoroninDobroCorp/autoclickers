@@ -374,10 +374,12 @@ export class TransportGuard {
     if (context && typeof context.newCDPSession === 'function') {
       // The response-stage session exists for the page BEFORE its (fresh) document is created, so it
       // covers the main frame and every frame of the same process. It is NOT attached to the frames of
-      // other processes (see _frameKind): a second client that enables Fetch on an out-of-process
-      // iframe races the renderer's switch to the intercepted loader (reproduced: ~1 run in 20 let the
-      // redirect through although the session was reported enabled), so those frames are refused for
-      // every request that has a redirect to follow instead of being "guarded late".
+      // other processes (see _frameKind): a second client that enables Fetch on the target of an
+      // out-of-process iframe AFTER that frame's request is in flight is not a guarantee (measured on
+      // Chrome 147: the redirect reached the stand in 40 of 40 runs of the variant that admitted the
+      // request after a late session; evidence/logs/oopif-late-second-session-is-not-a-fix-chrome147.txt),
+      // so those frames are refused for every request that has a redirect to follow instead of being
+      // "guarded late".
       await this._attachRedirectGuard(page, context);
     }
     // Existing documents predate the init script and may hold sockets or workers.

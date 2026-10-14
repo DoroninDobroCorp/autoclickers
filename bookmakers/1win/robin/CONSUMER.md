@@ -2,8 +2,8 @@
 
 The supported route from the shared automation queue to a 1win bet, split into two processes with an
 explicit contract between them. **Nothing here is enabled by default**: the policy mode defaults to
-`disabled`, the executor defaults to `dry`, and the live gate of the cart (`ONEWIN_AUTOMATION_LIVE_ENABLED`)
-is a third, separate switch.
+`disabled`; the executor config must state its mode (`dry` or `real`; `ExecutorCore` itself defaults to `dry`);
+and the live gate of the cart (`ONEWIN_AUTOMATION_LIVE_ENABLED`) is a third, separate switch.
 
 ```
  producers (analyzer, telegram)            consumer (Python, next to the queue)                 executor (Node, where the account lives)
@@ -34,12 +34,49 @@ environment variables* (`executor.token_env`, `jev.url_env`, `jev.token_env`).
 | mode | reads queue | claims / writes queue | calls executor | sends money |
 |---|---|---|---|---|
 | `disabled` (default) | no | no | no | no |
-| `observe` | yes | no | read-only evidence only | no |
+| `observe` | yes | no | read-only evidence only (and, when Jev is configured, one advice call) | no |
 | `dry` | yes | claim + `dry_run` history record | evidence + read-only cart | no |
 | `real` | yes | claim + outcome record | evidence + order | only if the executor itself is `real` **and** its live gate is open |
 
 `real` refuses to start unless the executor reports `mode=real`, `live_gate_open=true` and the same
 `transport_environment` as the policy.
+
+### Example policy (every value is an operator's; paths and URLs are placeholders)
+
+```json
+{
+  "schema": "onewin-consumer-policy.v1",
+  "mode": "observe",
+  "account_id": "acct-1",
+  "currency": "USDT",
+  "stake": 1.0,
+  "max_stake": 1.0,
+  "purpose": "diagnostic_test",
+  "environment": "production",
+  "bookmaker_id": "1win",
+  "tasks_file": "<path of the queue file>",
+  "state_dir": "<directory for journal, prepared store and exports>",
+  "executor": {"url": "http://127.0.0.1:<tunnel port>", "token_env": "ONEWIN_EXECUTOR_TOKEN"},
+  "jev": {"url_env": "ONEWIN_JEV_URL", "token_env": "ONEWIN_JEV_TOKEN", "timeout_s": 2.5}
+}
+```
+
+### Example executor config (`executor_service.mjs --config`)
+
+```json
+{
+  "store_path": "<durable attempt store of this account>",
+  "mode": "dry",
+  "environment": "production",
+  "token_env": "ONEWIN_EXECUTOR_TOKEN",
+  "listen": {"host": "127.0.0.1", "port": 0},
+  "session": {"proxy_config_path": "<private proxy config>", "expected_proxy_endpoint": "<approved host:port>",
+              "storage_state_path": "<stored session of the account>", "executable_path": "<full Chrome, not the headless shell>"}
+}
+```
+
+`environment: production` takes the production bet origins; `local_stand` needs `bet_api_origins` (and `site_origin`)
+and exists for isolated drills only. `listen.host` must be loopback.
 
 ## Executor contract — `automation-executor.v1`
 
