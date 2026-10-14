@@ -51,12 +51,19 @@ def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="boundary-drill-"))
     stand = MacStand(args.control_port)
     executor_url = f"http://127.0.0.1:{args.executor_port}"
-    market = case()
     from consumer_harness import native_market_for
     native = native_market_for("P1 T< 1")
-    stand.config(native_market=native, ui={"market_name": native["group_name"], "ui_selection_name": native["selection_name"]})
+    # the two hosts have their own clocks: the engine refuses an executor quote that is "in the future", so the
+    # skew is MEASURED (stand clock vs this clock, half a round trip allowed for) and recorded, not assumed
+    t_send = time.time()
+    stand_clock = stand.log()["clock"]
+    t_recv = time.time()
+    skew = stand_clock - (((t_send + t_recv) / 2) + args.offset)
+    stand.config(native_market=native, ui={"market_name": native["group_name"], "ui_selection_name": native["selection_name"]},
+                 evidence={"source_age_s": round(max(0.2, skew + 0.5), 3)})
     prod = Producer(tmp / "tasks.json")
     out: dict = {"schema": "onewin-mac-boundary-drill.v1", "consumer_host": {"python": sys.version.split()[0], "platform": platform.platform()},
+                 "clock_skew_executor_minus_consumer_s": round(skew, 3), "executor_quote_age_set_to_s": round(max(0.2, skew + 0.5), 3),
                  "stages": {}}
     policy = write_policy(tmp, mode="real", stand_url=executor_url, tasks_file=prod.tasks_file, state_dir=tmp / "state")
     try:
@@ -64,25 +71,36 @@ def main() -> int:
         key = queue_item_identity(item)
         out["queue_item"] = {"id": item["id"], "key": key, "bookmakerId": item["bookmakerId"]}
         flags = ("--test-clock-offset", repr(args.offset))
+        import os
+        token_env = {"ONEWIN_EXECUTOR_TOKEN": os.environ["ONEWIN_EXECUTOR_TOKEN"]}
 
+        # a consumer holding another token is refused by the Mac executor and touches nothing
         rc, lines = run_consumer(policy, "--mode", "observe", "--max-items", "1", *flags, timeout=90)
+        out["stages"]["0_wrong_token"] = {"rc": rc, "report": lines, "money_at_mac_stand": stand.log()["money_requests"],
+                                          "queue_item_still_current": prod.current()["item"] is not None, "history": prod.history()}
+
+        rc, lines = run_consumer(policy, "--mode", "observe", "--max-items", "1", *flags, env=token_env, timeout=90)
         rep = reports(lines)
         out["stages"]["observe"] = {"rc": rc, "report": rep[0] if rep else lines, "money_at_mac_stand": stand.log()["money_requests"],
                                     "queue_item_still_current": prod.current()["item"] is not None}
 
-        rc, lines = run_consumer(policy, "--max-items", "1", *flags, timeout=180)
+        rc, lines = run_consumer(policy, "--max-items", "1", *flags, env=token_env, timeout=180)
         rep = reports(lines)
         log = stand.log()
         out["stages"]["real"] = {"rc": rc, "report": rep[0] if rep else lines, "money_at_mac_stand": log["money_requests"],
                                  "stand_calls": log["calls"], "history": [{"status": h["status"], "ticketId": h.get("ticketId"),
                                                                            "testMode": h.get("testMode")} for h in prod.history()]}
         # what the Mac executor holds for this key, read through the contract
-        import os
         token = os.environ["ONEWIN_EXECUTOR_TOKEN"]
         request = urllib.request.Request(f"{executor_url}/v1/attempts/{key}", headers={"authorization": f"Bearer {token}"})
         with urllib.request.urlopen(request, timeout=10) as reply:  # noqa: S310
             view = json.loads(reply.read())
         attempt = view["attempt"]
+        if attempt is None:
+            out["mac_executor"] = {"attempt": None, "last_run": view.get("last_run"), "in_flight": view.get("in_flight")}
+            Path(args.out).write_text(json.dumps(out, indent=2, sort_keys=True))
+            print(json.dumps({"ok": False, "out": args.out, "why": "no attempt at the executor"}))
+            return 1
         request = urllib.request.Request(f"{executor_url}/v1/health", headers={"authorization": f"Bearer {token}"})
         with urllib.request.urlopen(request, timeout=10) as reply:  # noqa: S310
             health = json.loads(reply.read())
@@ -93,7 +111,7 @@ def main() -> int:
                                            "synthetic": attempt["payload"]["provenance"]["synthetic"]},
                                "wire_key_equals_attempt_key": log["money"][0]["body"]["idempotencyKey"] == attempt["native_request"]["idempotency_key"]}
         # the same message again, and a restart of the consumer: nothing more is sent
-        rc, lines = run_consumer(policy, "--max-items", "1", "--idle-exit-s", "1", *flags, timeout=90)
+        rc, lines = run_consumer(policy, "--max-items", "1", "--idle-exit-s", "1", *flags, env=token_env, timeout=90)
         out["stages"]["restart_idle"] = {"rc": rc, "reports": reports(lines), "money_at_mac_stand": stand.log()["money_requests"]}
         # the Mac side goes away (tunnel down): the consumer refuses without touching the queue
     finally:
