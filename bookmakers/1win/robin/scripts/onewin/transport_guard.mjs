@@ -251,6 +251,10 @@ function buildHardenScript({ blockWorkers, wsExtraEvents }) {
 })();`;
 }
 
+function hopIsMain(request, main) {
+  try { return request.frame() === main; } catch { return false; }
+}
+
 export class TransportGuard {
   constructor({
     page,
@@ -283,7 +287,7 @@ export class TransportGuard {
     this.needsFreshDocument = false;
     this.capabilities = { http_route: false, ws_route: false, init_script: false, scope: null };
     this.stats = { http_read: 0, http_read_post: 0, http_blocked: 0, http_submit_delegated: 0, ws_opened: 0, ws_frames_allowed: 0, ws_frames_blocked: 0,
-      workers_seen: 0, service_workers_seen: 0, popups_closed: 0 };
+      workers_seen: 0, service_workers_seen: 0, popups_closed: 0, http_blocked_foreign_frame: 0 };
     this.violations = [];
     this._canary = { http: 0, ws: 0, sw: 0 };
     this._seen = new WeakSet();
@@ -368,16 +372,13 @@ export class TransportGuard {
       }
     }
     if (context && typeof context.newCDPSession === 'function') {
+      // The response-stage session exists for the page BEFORE its (fresh) document is created, so it
+      // covers the main frame and every frame of the same process. It is NOT attached to the frames of
+      // other processes (see _frameKind): a second client that enables Fetch on an out-of-process
+      // iframe races the renderer's switch to the intercepted loader (reproduced: ~1 run in 20 let the
+      // redirect through although the session was reported enabled), so those frames are refused for
+      // every request that has a redirect to follow instead of being "guarded late".
       await this._attachRedirectGuard(page, context);
-      if (typeof page.on === 'function') {
-        // cross-site iframes live in their own process and have their own network session
-        const onFrame = (frame) => { this._attachRedirectGuard(frame, context).catch(() => {}); };
-        page.on('frameattached', onFrame);
-        this._cleanup.push(() => { try { page.off('frameattached', onFrame); } catch { /* closed */ } });
-      }
-      if (typeof page.frames === 'function') {
-        for (const frame of page.frames()) this._attachRedirectGuard(frame, context).catch(() => {});
-      }
     }
     // Existing documents predate the init script and may hold sockets or workers.
     this.needsFreshDocument = !this._isTestDouble();
@@ -444,6 +445,38 @@ export class TransportGuard {
     this._cleanup.push(() => session.detach().catch(() => {}));
   }
 
+  // Which network session sees the redirects of the frame that issued `request`:
+  //   'main'            the page's own session (the main frame)
+  //   'in_process'      a frame of the same process as the main frame: the same session
+  //   'out_of_process'  the frame, or an ancestor of it, is a target of its own (a cross-site iframe under
+  //                     site isolation): its network stack is not observed by the page session
+  //   'no_frame'        worker / service-worker request: nothing is known about it
+  // Playwright answers newCDPSession(frame) from its own state, which is current at the time the
+  // route of the frame's request is delivered (that request came through the frame's own target).
+  async _frameKind(request) {
+    if (this._isTestDouble() || typeof request.frame !== 'function') return 'main';
+    let frame = null;
+    try { frame = request.frame(); } catch { frame = null; }
+    if (!frame) return 'no_frame';
+    const main = this.page.mainFrame();
+    const context = this.page.context();
+    for (let hop = 0; frame && frame !== main && hop < 64; hop += 1) {
+      let session = null;
+      try {
+        session = await context.newCDPSession(frame);
+      } catch (error) {
+        // "part of the parent frame's session": it is served by its parent's target, look at the parent
+        if (!/part of the parent frame'?s session|does not have a separate CDP session/i.test(String(error && error.message))) return 'out_of_process';
+      }
+      if (session) {
+        session.detach().catch(() => {});
+        return 'out_of_process';
+      }
+      try { frame = frame.parentFrame(); } catch { return 'out_of_process'; }
+    }
+    return frame === main ? (hopIsMain(request, main) ? 'main' : 'in_process') : 'out_of_process';
+  }
+
   report() {
     return {
       version: TRANSPORT_GUARD_VERSION,
@@ -503,6 +536,20 @@ export class TransportGuard {
         // Only reached when a registration was NOT stopped before it asked for its script.
         this._canary.sw += 1;
         return route.fulfill({ status: 404, contentType: 'text/plain', body: 'canary' });
+      }
+      if (verdict.kind === 'read_post' || verdict.kind === 'submit_endpoint') {
+        // A request with a body can be followed by a 307/308 that repeats it. Only the page's own
+        // session sees that hop, so such a request is let go only from the main frame or a frame of
+        // its process; no cart ever issues one from another frame. Reads (GET) of other frames stay
+        // allowed: a GET keeps being a GET across every redirect (residual: docs, HANDOFF).
+        const kind = await this._frameKind(request);
+        // a placement is issued only by the document of the cart itself, never by an iframe
+        const admitted = verdict.kind === 'submit_endpoint' ? kind === 'main' : (kind === 'main' || kind === 'in_process');
+        if (!admitted) {
+          this.stats.http_blocked_foreign_frame += 1;
+          this._violation('request_from_foreign_frame', `${method} ${url.pathname} (${kind})`);
+          return this._block(route, url, `${verdict.kind}_from_${kind}_frame`, { signal: this.isArmed() || this.mode === 'live' });
+        }
       }
       if (verdict.kind === 'read') {
         this.stats.http_read += 1;

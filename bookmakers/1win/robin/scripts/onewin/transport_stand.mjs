@@ -15,6 +15,8 @@ const require = createRequire(import.meta.url);
 
 export const BET_HOST = 'api-gateway.top-parser.com';
 export const SITE_HOST = '1win.pro';
+// a third, cross-site origin (another registrable domain): its iframe is an out-of-process iframe
+export const XSITE_HOST = 'xsite.example';
 
 export function loadWs() {
   for (const spec of ['ws', '/srv/betting/automation/node_modules/ws', '/srv/betting/robinarb/current/node_modules/ws']) {
@@ -85,7 +87,7 @@ function selfSignedCert() {
   const key = path.join(dir, 'key.pem');
   const cert = path.join(dir, 'cert.pem');
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1',
-    '-subj', `/CN=${SITE_HOST}`, '-addext', `subjectAltName=DNS:${SITE_HOST},DNS:${BET_HOST}`], { stdio: 'ignore' });
+    '-subj', `/CN=${SITE_HOST}`, '-addext', `subjectAltName=DNS:${SITE_HOST},DNS:${BET_HOST},DNS:${XSITE_HOST}`], { stdio: 'ignore' });
   const material = { key: fs.readFileSync(key), cert: fs.readFileSync(cert) };
   fs.rmSync(dir, { recursive: true, force: true });
   return material;
@@ -211,6 +213,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
     tls,
     siteOrigin: `${tls ? 'https' : 'http'}://${SITE_HOST}:${port}`,
     betOrigin: `${tls ? 'https' : 'http'}://${BET_HOST}:${port}`,
+    xsiteOrigin: `${tls ? 'https' : 'http'}://${XSITE_HOST}:${port}`,
     wsBase: `${tls ? 'wss' : 'ws'}://${BET_HOST}:${port}`,
     reset() { log.http.length = 0; log.ws.length = 0; log.money.length = 0; },
     async close() {
@@ -227,7 +230,7 @@ export async function launchStandBrowser(stand, { extraArgs = [], contextOptions
   if (!chromium) return null;
   const browser = await chromium.launch({ headless: true, executablePath: chromiumPath(), args: [
     '--no-sandbox',
-    `--host-resolver-rules=MAP ${BET_HOST} 127.0.0.1,MAP ${SITE_HOST} 127.0.0.1`,
+    `--host-resolver-rules=MAP ${BET_HOST} 127.0.0.1,MAP ${SITE_HOST} 127.0.0.1,MAP ${XSITE_HOST} 127.0.0.1`,
     '--proxy-bypass-list=<-loopback>',
     `--unsafely-treat-insecure-origin-as-secure=${stand.siteOrigin}`,
     ...(stand.tls ? ['--ignore-certificate-errors'] : []),

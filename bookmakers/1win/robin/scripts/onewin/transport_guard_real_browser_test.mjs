@@ -418,6 +418,158 @@ for (const kind of ['dry', 'live']) {
   });
 }
 
+// ---------------------------------------------------------------- out-of-process iframe (work 3)
+// A cross-site iframe is a process of its own with its own network session. The stand serves a THIRD
+// registrable domain, so Chrome's site isolation puts its document in another process (asserted below
+// through Target.getTargets, never assumed). The page in that iframe makes a "read" POST that the stand
+// answers with 307 -> the placement endpoint: the redirect is followed inside the network stack, past
+// every route.
+// RED on 54ea6a7: the redirect session was attached to a frame when the frame was ATTACHED (still part
+// of the parent's process, so the attach was refused and swallowed) and never to the frame that became
+// out-of-process at commit: the money request reached the stand.
+// Attaching a second Fetch client to the out-of-process frame later is NOT a fix: it was tried and
+// still let the redirect through in ~1 run in 20 (the renderer switches to the intercepted loader after
+// the enable is acknowledged). The guard therefore refuses, at the request stage that is reliable for
+// every frame, any body-carrying request of a frame that is not served by the page's own session.
+async function oopifTargets() {
+  const session = await browser.newBrowserCDPSession();
+  try {
+    const { targetInfos } = await session.send('Target.getTargets');
+    return targetInfos.filter((t) => t.type === 'iframe').map((t) => { try { return new URL(t.url).hostname; } catch { return ''; } });
+  } finally { await session.detach().catch(() => {}); }
+}
+
+// the frame is cross-site to the page either at its own origin or, after a form post, at the bet origin
+const isForeignTarget = (hosts) => hosts.some((h) => h === 'xsite.example' || h === 'api-gateway.top-parser.com');
+const FRAME_PATH = '/bets/get-max-bet-amount';
+const OOPIF_FRAMES = {
+  fetch: (s, qs) => `<html><body><script>
+    fetch(${JSON.stringify(s.betOrigin)} + '${FRAME_PATH}${qs}', { method: 'POST', body: '{}' })
+      .then((r) => parent.postMessage('done:' + r.status, '*'), (e) => parent.postMessage('err:' + e.message, '*'));
+  </script></body></html>`,
+  form: (s, qs) => `<html><body><form id="f" method="post" action="${s.betOrigin}${FRAME_PATH}${qs}"><input name="a" value="1"></form>
+    <script>document.getElementById('f').submit();</script></body></html>`,
+  beacon: (s, qs) => `<html><body><script>
+    navigator.sendBeacon(${JSON.stringify(s.betOrigin)} + '${FRAME_PATH}${qs}', '{}');
+    parent.postMessage('done:beacon', '*');
+  </script></body></html>`,
+  // an in-process frame of the out-of-process frame: nested frames inherit the parent's process
+  nested: (s, qs) => `<html><body><iframe src="${s.xsiteOrigin}/frame-inner${qs}"></iframe></body></html>`,
+};
+
+async function runFrame(page, frameKind, { origin = stand.xsiteOrigin, redirect = true } = {}) {
+  const qs = redirect ? '?redirect=1' : '';
+  stand.pages.set('/frame', OOPIF_FRAMES[frameKind](stand, qs));
+  stand.pages.set('/frame-inner', OOPIF_FRAMES.fetch(stand, qs).replace('parent.postMessage', 'top.postMessage'));
+  const seen = new Set();
+  // sampled while the frame lives: a form post navigates it on to the bet origin
+  let sampling = true;
+  const sampler = (async () => {
+    while (sampling) {
+      for (const host of await oopifTargets().catch(() => [])) seen.add(host);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+  })();
+  const message = await page.evaluate(({ src }) => new Promise((resolve) => {
+    window.addEventListener('message', (e) => resolve(String(e.data)));
+    const f = document.createElement('iframe'); f.src = src; document.body.appendChild(f);
+    setTimeout(() => resolve('timeout'), 2500);
+  }), { src: `${origin}/frame` });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  sampling = false;
+  await sampler;
+  return { message, oopif_hosts: [...seen] };
+}
+
+test('oopif control: without the guard the cross-site iframe really reaches the placement endpoint (the stand reproduces the path)', async (t) => {
+  if (skipReason) return t.skip(skipReason);
+  for (const frameKind of ['fetch', 'form', 'beacon', 'nested']) {
+    stand.reset();
+    stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin }));
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    try {
+      const page = await context.newPage();
+      await page.goto(stand.siteOrigin + EVENT_PATH);
+      const run = await runFrame(page, frameKind);
+      assert.ok(isForeignTarget(run.oopif_hosts), `${frameKind}: the iframe must be an out-of-process target (${run.oopif_hosts})`);
+      assert.equal(stand.log.money.length, 1, `${frameKind}: the redirect delivers exactly one placement request (${JSON.stringify(run)}; ${JSON.stringify(stand.log.http.map((h) => h.path))})`);
+    } finally { await context.close().catch(() => {}); }
+  }
+});
+
+for (const kind of ['dry', 'live']) {
+  for (const frameKind of ['fetch', 'form', 'beacon', 'nested']) {
+    test(`${kind}: out-of-process iframe -> redirect -> placement endpoint is refused (${frameKind})`, async (t) => {
+      await withCart(t, kind, async ({ page, cart }) => {
+        const { message, oopif_hosts: hosts } = await runFrame(page, frameKind);
+        assert.ok(isForeignTarget(hosts), `the iframe must be an out-of-process target (${hosts})`);
+        assert.equal(stand.log.money.length, 0, `no placement reached the stand (iframe said: ${message}; violations ${JSON.stringify(cart._guard.violations)}; http ${JSON.stringify(stand.log.http.map((h) => h.path))})`);
+        assert.equal(stand.log.http.some((h) => h.path === '/bets/make-bet-v2'), false);
+        // refused at admission: the read POST of a foreign frame never left, so there was no redirect to follow
+        assert.equal(stand.log.http.some((h) => h.redirected), false, 'the first hop was refused, not just the second');
+        assert.ok(cart._guard.violations.some((v) => v.kind === 'request_from_foreign_frame'), JSON.stringify(cart._guard.violations));
+        if (frameKind === 'fetch') assert.match(message, /^err:/, 'the iframe sees a failed request, not an answer');
+        assert.equal((await cart._guard.verifyCoverage()).ok, true, 'the proof for the document itself still holds');
+      });
+    });
+  }
+
+  test(`${kind}: a same-site iframe is served by the page's session: its read POST works, its redirect to placement is cut`, async (t) => {
+    await withCart(t, kind, async ({ page, cart }) => {
+      const plain = await runFrame(page, 'fetch', { origin: stand.siteOrigin, redirect: false });
+      assert.equal(plain.message, 'done:200', 'a legitimate read POST of an in-process frame is admitted');
+      assert.equal(stand.log.money.length, 0);
+      assert.equal(plain.oopif_hosts.includes('1win.pro'), false, 'a same-site iframe stays in the page process');
+      const redirected = await runFrame(page, 'fetch', { origin: stand.siteOrigin, redirect: true });
+      assert.match(redirected.message, /^err:/);
+      assert.equal(stand.log.money.length, 0, 'the response-stage guard of the page session cut the redirect');
+      assert.ok(cart._guard.violations.some((v) => v.kind === 'redirect_blocked'), JSON.stringify(cart._guard.violations));
+    });
+  });
+}
+
+test('live armed: the exact canonical placement posted by an iframe (same-site or cross-site) is refused; the main frame still places', async (t) => {
+  await withCart(t, 'live', async ({ page, cart }) => {
+    const odd = (n) => `10:19367174412016982${n}:0`;
+    const arm = async (n) => {
+      const key = `frame-key-${n}`;
+      await cart.attemptStore.claim(key, { stake: 1, currency: 'USDT', payload: { idempotency_key: key, stake: 1, currency: 'USDT',
+        event_id: '40021999', market_id: '6271', selection_id: odd(n) } });
+      await cart.attemptStore.record(key, 'PRE_CHECK_PASSED');
+      await cart.attemptStore.record(key, 'SUBMITTING');
+      cart._runtime = { now: () => 1000, cancelled: async () => false };
+      cart.armedExpectation = { idempotencyKey: key, eventId: '40021999', marketId: '6271', selectionId: odd(n), stake: 1, currency: 'USDT',
+        price: 1.87, expiresAt: 2000 };
+      return JSON.stringify({ currencyCode: 'USDT', idempotencyKey: `client-${n}`, amount: 1,
+        coupon: { amount: 1, selections: [{ oddId: odd(n), cf: 1.87, matchId: '40021999' }] }, wallet: { type: 'real' } });
+    };
+    for (const [n, origin, label] of [[1, stand.siteOrigin, 'same-site'], [2, stand.xsiteOrigin, 'cross-site']]) {
+      const body = await arm(n);
+      stand.pages.set('/frame', `<html><body><script>
+        fetch(${JSON.stringify(stand.betOrigin)} + '/bets/make-bet-v2', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ${JSON.stringify(body)} })
+          .then((r) => parent.postMessage('done:' + r.status, '*'), (e) => parent.postMessage('err:' + e.message, '*'));
+      </script></body></html>`);
+      const message = await page.evaluate(({ src }) => new Promise((resolve) => {
+        window.addEventListener('message', (e) => resolve(String(e.data)));
+        const f = document.createElement('iframe'); f.src = src; document.body.appendChild(f);
+        setTimeout(() => resolve('timeout'), 3000);
+      }), { src: `${origin}/frame` });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.match(message, /^err:/, `${label}: the iframe sees a failed request`);
+      assert.equal(stand.log.money.length, 0, `${label}: nothing reached the stand`);
+      assert.equal(cart.submitSentCount, 0);
+      assert.ok(cart.blocked_reasons.some((r) => /^submit_endpoint_from_(in|out_of)_process_frame$/.test(r)), JSON.stringify(cart.blocked_reasons));
+      assert.equal(cart.armedExpectation, null, 'a refused placement ends the armed window');
+    }
+    const body = await arm(3);
+    const answer = await page.evaluate(async ({ url, body }) => {
+      try { return { status: (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status }; } catch (e) { return { blocked: String(e) }; }
+    }, { url: stand.betOrigin + '/bets/make-bet-v2', body });
+    assert.equal(answer.status, 200, JSON.stringify({ answer, blocked: cart.blocked_reasons }));
+    assert.equal(stand.log.money.length, 1, 'the main frame of the cart is the only issuer of a placement');
+  });
+});
+
 test('live: a failed installation leaves no handler behind, the retry decides every request exactly once', async (t) => {
   if (skipReason) return t.skip(skipReason);
   stand.reset();
