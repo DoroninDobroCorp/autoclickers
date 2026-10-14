@@ -146,6 +146,14 @@ function validateEntry(key, entry) {
     const w = entry.withdrawal_requested;
     if (!isPlainObject(w) || !isFinitePositive(w.at) || typeof w.reason !== 'string') throw bad('withdrawal_requested');
   }
+  if (entry.native_request !== undefined && entry.native_request !== null) {
+    const n = entry.native_request;
+    if (!isPlainObject(n) || typeof n.idempotency_key !== 'string' || !n.idempotency_key.trim() || n.idempotency_key.length > 128
+      || typeof n.body_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(n.body_sha256) || !isFinitePositive(n.recorded_at)) {
+      throw bad('native_request');
+    }
+    if (entry.status === 'CLAIMED' || entry.status === 'PRE_CHECK_PASSED') throw bad('native_request_before_submitting');
+  }
   if (entry.revisions !== undefined) {
     if (!Array.isArray(entry.revisions)) throw bad('revisions');
     for (const rev of entry.revisions) {
@@ -752,6 +760,51 @@ export class DurableAttemptStore {
     });
   }
 
+  // The idempotency key the FIRST-PARTY page generated for its make-bet-v2 request. It is the only
+  // handle by which the bookmaker's side of an unclear outcome can be found again, so it is made
+  // durable before the request is allowed to leave, and it is written once: a started attempt never
+  // gets another native key.
+  async recordNativeRequest(key, { idempotency_key: nativeKey, body_sha256: bodySha256 } = {}) {
+    this._assertUsable();
+    if (typeof key !== 'string' || !key.trim()) throw new Error('UNKNOWN_ATTEMPT_KEY');
+    if (typeof nativeKey !== 'string' || !nativeKey.trim() || nativeKey.length > 128) throw new Error('NATIVE_KEY_INVALID');
+    if (typeof bodySha256 !== 'string' || !/^[0-9a-f]{64}$/.test(bodySha256)) throw new Error('NATIVE_BODY_DIGEST_INVALID');
+    const cleanKey = key.trim();
+    return this._withLock(() => {
+      this._assertUsable();
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
+      if (!entry) throw new Error('UNKNOWN_ATTEMPT_KEY');
+      if (entry.native_request) {
+        if (entry.native_request.idempotency_key === nativeKey && entry.native_request.body_sha256 === bodySha256) {
+          return JSON.parse(JSON.stringify(entry.native_request));
+        }
+        throw new Error('NATIVE_REQUEST_ALREADY_RECORDED');
+      }
+      if (entry.status !== 'SUBMITTING') throw new Error(`NATIVE_REQUEST_REQUIRES_SUBMITTING:${entry.status}`);
+      entry.native_request = { idempotency_key: nativeKey, body_sha256: bodySha256, recorded_at: Date.now() };
+      entry.updated_at = Math.max(Date.now(), entry.created_at);
+      validateEntry(cleanKey, entry);
+      this._writeDataUnlocked(attemptsMap);
+      return JSON.parse(JSON.stringify(entry.native_request));
+    });
+  }
+
+  // Small, closed view of every attempt (recovery after a restart, operator listing).
+  listAttempts({ statuses = null } = {}) {
+    return this._withLock(() => {
+      const out = [];
+      for (const entry of this._readDataUnlocked().values()) {
+        if (statuses && !statuses.includes(entry.status)) continue;
+        out.push({ key: entry.key, status: entry.status, event_id: entry.event_id, market_id: entry.market_id,
+          selection_id: entry.selection_id, stake: entry.stake, currency: entry.currency, created_at: entry.created_at,
+          updated_at: entry.updated_at, withdrawal_requested: entry.withdrawal_requested || null,
+          native_request: entry.native_request || null, revisions: (entry.revisions || []).length });
+      }
+      return out;
+    });
+  }
+
   // Last-resort fact preservation when the store cannot be written after the
   // bookmaker already answered. Best effort by design; the caller reports it.
   appendEmergencyJournal(record) {
@@ -1041,6 +1094,21 @@ export class OneWinLiveCart {
 
     const validation = this._validateMakeBetRequestBody(postBody, expected);
     if (!validation.ok) return block(validation.reason, { signal: true });
+
+    // The native idempotency key of this request is made durable BEFORE the request can leave: after
+    // a crash or an unclear answer it is the handle by which the bookmaker's history is searched.
+    // A store that cannot take it forwards nothing.
+    if (typeof this.attemptStore.recordNativeRequest !== 'function') {
+      return block('native_request_recording_unsupported', { signal: true });
+    }
+    try {
+      await this.attemptStore.recordNativeRequest(expected.idempotencyKey, {
+        idempotency_key: postBody.idempotencyKey,
+        body_sha256: crypto.createHash('sha256').update(raw).digest('hex'),
+      });
+    } catch (recordError) {
+      return block(`native_request_not_recorded:${String(recordError && recordError.message).slice(0, 80)}`, { signal: true });
+    }
 
     // Freshness is decided at the moment of permission, not at an earlier
     // await: withdrawal first (awaited), then one synchronous check of the
