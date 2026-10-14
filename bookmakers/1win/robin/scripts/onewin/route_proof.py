@@ -29,6 +29,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -36,11 +37,31 @@ HERE = Path(__file__).resolve().parent
 ROBIN = HERE.parent.parent
 NODE = os.environ.get("NODE", "node")
 RUNNER = HERE / "route_node_runner.mjs"
+# every browser of this proof carries this marker: the crash scenarios SIGKILL the node runner and a
+# browser may outlive it (it does on macOS), so the owner closes what is left, by the marker only
+MARKER = f"onewin-route-proof-{uuid.uuid4().hex[:12]}"
+
+
+def close_leftover_browsers() -> list[int]:
+    """Processes that carry this proof's marker and outlived their runner; closed by pid, nothing else."""
+    out = subprocess.run(["ps", "-eo", "pid=,args="], capture_output=True, text=True).stdout
+    closed = []
+    for line in out.splitlines():
+        if MARKER in line and "ps -eo" not in line:
+            pid = int(line.split(None, 1)[0])
+            if pid != os.getpid():
+                try:
+                    os.kill(pid, 9)
+                    closed.append(pid)
+                except OSError:
+                    pass
+    return closed
 
 
 def node(command: str, args: list[str], payload: dict | None = None, *, timeout: int = 180, allow_failure: bool = False) -> dict:
     proc = subprocess.run([NODE, str(RUNNER), command, *args], input=json.dumps(payload or {}), text=True,
-                          capture_output=True, timeout=timeout, cwd=str(HERE))
+                          capture_output=True, timeout=timeout, cwd=str(HERE),
+                          env={**os.environ, "ONEWIN_STAND_MARKER": MARKER})
     if proc.returncode != 0 and not allow_failure:
         raise RuntimeError(f"{command} failed rc={proc.returncode}: {proc.stderr[-1500:]}")
     lines = [line for line in proc.stdout.strip().splitlines() if line.startswith("{")]
@@ -600,6 +621,7 @@ async def main() -> int:
         checks[f"{name}_is_{expected.lower()}_with_one_request"] = (
             run["result"]["status"] == expected and att["status"] == expected and run["stand"]["money_requests"] == 1 and exp["synthetic"] is True)
 
+    report["browsers_left_by_killed_runners_closed_by_marker"] = len(close_leftover_browsers())
     report["elapsed_seconds"] = round(time.time() - started, 1)
     flat = {k: v for k, v in checks.items() if isinstance(v, bool)}
     report["summary"] = {"checks_total": len(flat), "checks_true": sum(flat.values()), "failed": [k for k, v in flat.items() if not v]}
