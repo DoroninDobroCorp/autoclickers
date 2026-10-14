@@ -7,9 +7,11 @@
 //                                                               against a local TLS stand (a STUB of the
 //                                                               bookmaker: "money" is a counter there)
 //
-// The consumer here is glue written for the proof: it reads the queue item through TasksManager,
-// takes the already verified plan, drives the real cart and writes the outcome back to the queue
-// (markCompleted / markFailed). It adds no decision logic of its own.
+// SUPERSEDED as a consumer: the product consumer is `python -m onewin_automation.consumer`
+// (onewin_automation/consumer/, with queue_worker.mjs and executor_service.mjs). The `consume`
+// command below remains only as the single-process glue of the isolated route proof (route_proof.py);
+// it adds no decision logic of its own. Its write-back uses the same outcome record as the product
+// path: an unclear outcome is `unresolved`, never `failed`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -136,11 +138,16 @@ if (command === 'queue-add') {
       try { attempt = store.getAttempt(plan.idempotency_key); } catch { /* unreadable */ }
       // write the outcome back to the queue, as a consumer must
       let queueWriteBack = null;
+      const record = (status, extra = {}) => quiet(() => manager.recordExecutionOutcome(summary.queue_item_id, {
+        status, attemptKey: plan.idempotency_key, stake: attempt.stake, synthetic: true, transportEnvironment: 'local_stand', ...extra })).recorded === true;
       if (attempt && attempt.status === 'ACCEPTED') {
-        queueWriteBack = quiet(() => manager.markCompleted(summary.queue_item_id, { odds: attempt.receipt && attempt.receipt.accepted_cf,
-          stake: attempt.stake, receipt_ref: attempt.receipt && attempt.receipt.bet_id, synthetic: true }));
-      } else if (attempt && ['REJECTED', 'WITHDRAWN', 'INDETERMINATE'].includes(attempt.status)) {
-        queueWriteBack = quiet(() => manager.markFailed(summary.queue_item_id, { message: `attempt_${attempt.status}`, step: 'executor' }));
+        queueWriteBack = record('accepted', { odds: attempt.receipt && attempt.receipt.accepted_cf, ticketId: attempt.receipt && attempt.receipt.bet_id });
+      } else if (attempt && attempt.status === 'REJECTED') {
+        queueWriteBack = record('rejected', { errorCode: attempt.error, reason: attempt.error });
+      } else if (attempt && attempt.status === 'WITHDRAWN') {
+        queueWriteBack = record('not_sent', { reason: attempt.error || 'withdrawn' });
+      } else if (attempt && attempt.status === 'INDETERMINATE') {
+        queueWriteBack = record('unresolved', { reason: attempt.error || 'indeterminate' });
       }
       const history = await page.evaluate(async (url) => {
         try { return (await (await fetch(url)).json()).result.items; } catch { return null; }
