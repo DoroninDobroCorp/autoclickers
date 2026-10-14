@@ -97,13 +97,14 @@ export async function startStand({ tls = false } = {}) {
   const { WebSocketServer } = loadWs();
   const log = {
     http: [],        // every request the server saw: {method, path, host, origin, body}
+    pages: [],       // document requests answered from `pages`: {method, path, host}
     ws: [],          // {path, data, socket}
     wsConnections: 0,
     money: [],       // accepted "bets" (the only thing a guard must never allow in a read-only run)
   };
   let betSeq = 0;
   // test hook: (body) => JSON-able answer of make-bet-v2; null = the default accepted answer
-  const hooks = { makeBetAnswer: null, makeBetDelayMs: 0, onMakeBet: null, dropMakeBet: 0 };
+  const hooks = { makeBetAnswer: null, makeBetDelayMs: 0, onMakeBet: null, dropMakeBet: 0, pageDelayMs: 0 };
   const isMoneyPath = (p) => /\/bets\/(?:make-bet|refund|cashout|sell)|\/fortune-wheel\/make-roll|\/bets\/api\/v1\/user\/bets\/ordinary/i.test(p);
 
   const pages = new Map();
@@ -138,9 +139,14 @@ self.addEventListener('message',async e=>{const m=e.data||{};
         return;
       }
       if (pages.has(url.pathname) || /^\/betting\/match\/sport\/\d+$/.test(url.pathname)) {
+        log.pages.push({ method: req.method, path: url.pathname, host: req.headers.host });
         res.setHeader('content-type', 'text/html');
         const page = pages.get(url.pathname) || pages.get('/betting/match/*') || pages.get('/');
-        res.end(typeof page === 'function' ? page(url) : page);
+        const html = typeof page === 'function' ? page(url) : page;
+        // a slow event page: the cart spends a long phase before anything can be placed
+        const isEvent = /^\/betting\/match\//.test(url.pathname);
+        if (isEvent && hooks.pageDelayMs > 0) setTimeout(() => { try { res.end(html); } catch { /* gone */ } }, hooks.pageDelayMs);
+        else res.end(html);
         return;
       }
       if (url.searchParams.get('redirect') === '1') {
@@ -221,7 +227,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
     betOrigin: `${tls ? 'https' : 'http'}://${BET_HOST}:${port}`,
     xsiteOrigin: `${tls ? 'https' : 'http'}://${XSITE_HOST}:${port}`,
     wsBase: `${tls ? 'wss' : 'ws'}://${BET_HOST}:${port}`,
-    reset() { log.http.length = 0; log.ws.length = 0; log.money.length = 0; },
+    reset() { log.http.length = 0; log.pages.length = 0; log.ws.length = 0; log.money.length = 0; },
     async close() {
       for (const client of wss.clients) client.terminate();
       await new Promise((resolve) => wss.close(resolve));
@@ -236,6 +242,8 @@ export async function launchStandBrowser(stand, { extraArgs = [], contextOptions
   if (!chromium) return null;
   const browser = await chromium.launch({ headless: true, executablePath: chromiumPath(), args: [
     '--no-sandbox',
+    // lets an owner prove, by this marker, that every browser of a drill is gone
+    ...(process.env.ONEWIN_STAND_MARKER ? [`--onewin-session-marker=${process.env.ONEWIN_STAND_MARKER}`] : []),
     `--host-resolver-rules=MAP ${BET_HOST} 127.0.0.1,MAP ${SITE_HOST} 127.0.0.1,MAP ${XSITE_HOST} 127.0.0.1`,
     '--proxy-bypass-list=<-loopback>',
     `--unsafely-treat-insecure-origin-as-secure=${stand.siteOrigin}`,
