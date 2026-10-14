@@ -170,6 +170,9 @@ class Consumer:
                 problems.append("executor_live_gate_closed")
             if self.policy.environment == "production" and health.get("store", {}).get("durable") is not True:
                 problems.append("executor_store_not_durable")
+            store_identity = (health.get("store") or {}).get("path_sha256")
+            if not isinstance(store_identity, str) or not store_identity.strip():
+                problems.append("executor_store_identity_missing")
         if problems:
             raise PreflightError(problems, health)
         self._store_id = (health.get("store") or {}).get("path_sha256")
@@ -414,6 +417,10 @@ class Consumer:
         """Ask the owner of the executor's attempt store to refuse ``key`` for good.  The only way a hand-off
         that was not answered is ever called "not sent": 'fenced' (no attempt existed, none can now), 'attempt'
         (one exists: follow it) or 'unknown' (nothing was acknowledged; the order may still arrive)."""
+        if not isinstance(store, str) or not store.strip():
+            # A legacy journal cannot certify that the answering store owns its hand-off.
+            # Do not cancel a key on an unproven store or drop its exposure.
+            return "unknown", {"reason": "fence_not_acknowledged:executor_store_identity_missing_in_handoff"}
         try:
             out = self.executor.fence(key, reason)
         except (ExecutorUnavailable, ExecutorRefused) as exc:
@@ -585,6 +592,9 @@ class Consumer:
             outcome["odds"] = decision.odds
             outcome["synthetic"] = provenance["synthetic"]
         written = self.queue.request("record_outcome", task_id=item.get("id"), outcome=outcome)
+        if not isinstance(written, dict) or (
+                written.get("recorded") is not True and written.get("already") is not True):
+            raise QueueError("QUEUE_WRITE_NOT_ACKNOWLEDGED")
         self.journal.append({"phase": "queue_written", "key": key, "recorded": bool(written.get("recorded")),
                              "already": bool(written.get("already")), "queue_status": (written.get("entry") or {}).get("status")})
         return written
@@ -642,7 +652,9 @@ class Consumer:
             decision = Decision.from_record(decided)
             attempt = self._attempt_or_none(key)
             if phase == "decided" or self._still_queued(snapshot) or (
-                    decision.status == "unresolved" and not (entry["phases"].get("exported") or {}).get("late_resolution")):
+                    decision.status == "unresolved" and not (
+                        (entry["phases"].get("exported") or {}).get("late_resolution")
+                        and (entry["phases"].get("exported") or {}).get("queue_acknowledged") is True)):
                 # the decision was taken but the queue still holds the task (crash before the write, or a
                 # re-delivered copy): record again, the record is idempotent per attempt key.  An unresolved
                 # exposure is re-asserted from the journal every time: a queue file that lost it (restored
@@ -686,8 +698,8 @@ class Consumer:
         if decision.status != "unresolved":
             return None
         exported = entry["phases"].get("exported") or {}
-        if exported.get("late_resolution"):
-            return None
+        if exported.get("late_resolution") and exported.get("queue_acknowledged") is True:
+            return {"resolution": exported["late_resolution"], "queue": True, "already": True}
         if not attempt and (entry["phases"].get("observed") or {}).get("attempt_status") is None \
                 and "handed_off" in entry["phases"] and self.policy.mode == "real":
             # no attempt was ever seen: only the executor's fence can say that the order will never arrive
@@ -697,7 +709,9 @@ class Consumer:
                 resolution = {"resolution": "not_placed", "operator": "consumer",
                               "evidence": "executor fenced the key: no attempt existed and none can be claimed any more"}
                 resolved = self.queue.request("resolve_outcome", attempt_key=key, resolution=resolution)
-                self.journal.append({"phase": "exported", "key": key, "late_resolution": "not_placed", "fenced": True,
+                if resolved.get("resolved") is not True and resolved.get("already") is not True:
+                    return None
+                self.journal.append({"phase": "exported", "key": key, "late_resolution": "not_placed", "fenced": True, "queue_acknowledged": True,
                                      "attempt_status": None, "path": None, "sha256": None})
                 return {"resolution": "not_placed", "fenced": True, "queue": bool(resolved.get("resolved") or resolved.get("already"))}
             if verdict != "attempt":
@@ -718,10 +732,12 @@ class Consumer:
             resolution = {"resolution": "not_placed", "operator": "consumer",
                           "evidence": f"executor attempt reached {attempt['status']} after the consumer stopped waiting"}
         resolved = self.queue.request("resolve_outcome", attempt_key=key, resolution=resolution)
+        if resolved.get("resolved") is not True and resolved.get("already") is not True:
+            return None
         new_decision = self._decision_from_attempt(key, {"attempt": attempt})
         export = self._export(key, snapshot, attempt, new_decision)
         self.journal.append({"phase": "exported", "key": key, "late_resolution": resolution["resolution"],
-                             "attempt_status": attempt["status"], "path": (export or {}).get("path"), "sha256": (export or {}).get("sha256")})
+                             "queue_acknowledged": True, "attempt_status": attempt["status"], "path": (export or {}).get("path"), "sha256": (export or {}).get("sha256")})
         return {"resolution": resolution["resolution"], "queue": bool(resolved.get("resolved") or resolved.get("already"))}
 
     def _attempt_or_none(self, key: str) -> dict[str, Any] | None:

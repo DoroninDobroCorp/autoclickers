@@ -137,7 +137,9 @@ def open_exposures(items: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
         decided = ((item["phases"].get("decided") or {}).get("decision") or {})
         exported = item["phases"].get("exported") or {}
         unfinished_item = item["phase"] != "exported"
-        unresolved = decided.get("status") == "unresolved" and not exported.get("late_resolution")
+        unresolved = decided.get("status") == "unresolved" and not (
+            exported.get("late_resolution") and exported.get("queue_acknowledged") is True
+        )
         if unfinished_item or unresolved:
             out.append({"key": key, "task_id": (item["phases"].get("claimed") or {}).get("task_id"), "phase": item["phase"],
                         "handed_off": "handed_off" in item["phases"], "decision": decided.get("status"),
