@@ -42,24 +42,33 @@ const plan = (key) => {
     ui_selection_name: 'Under 60.5' };
 };
 
-async function placeWith(answer, key) {
+async function placeWith(answer, key, { drop = false, redirect = false } = {}) {
   stand.reset();
   stand.hooks.makeBetAnswer = answer;
+  stand.hooks.dropMakeBet = drop ? 1 : 0;
+  stand.hooks.makeBetRedirect = redirect ? '/bets/make-bet-v2?redirected=1' : null;
   stand.pages.set('/betting/match/*', () => eventPageHtml({ betOrigin: stand.betOrigin, oddId: currentOdd }));
   const context = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'onewin-wire-'));
   try {
     const page = await context.newPage();
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'onewin-wire-'));
     const store = new DurableAttemptStore(path.join(dir, 'a.json'));
     const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true, transportPolicy: { betApiOrigins: [stand.betOrigin] } });
     const result = await cart.run(plan(key), { now: () => Date.now() / 1000 });
-    const attempt = store.getAttempt(key);
+    const recovered = new DurableAttemptStore(path.join(dir, 'a.json'));
+    const attempt = recovered.getAttempt(key);
+    const sameKeyClaimed = await recovered.claim(key, { stake: 1, currency: 'USDT', payload: { idempotency_key: key } });
     // can ANOTHER key take the same native selection afterwards?
-    const second = await store.claim(`${key}-again`, { stake: 1, currency: 'USDT',
+    const second = await recovered.claim(`${key}-again`, { stake: 1, currency: 'USDT',
       payload: { idempotency_key: `${key}-again`, stake: 1, currency: 'USDT', event_id: '40021999', market_id: '6271', selection_id: ODD } });
-    return { result, attempt, selectionReleased: second === true, moneyReached: stand.log.money.length,
+    return { result, attempt, sameKeyClaimed, selectionReleased: second === true, moneyReached: stand.log.money.length,
       requestBody: stand.log.money[0] && stand.log.money[0].body };
-  } finally { await context.close(); }
+  } finally {
+    await context.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+    stand.hooks.dropMakeBet = 0;
+    stand.hooks.makeBetRedirect = null;
+  }
 }
 
 test('the request of the first-party client passes the cart validation and carries its own idempotency key', async (t) => {
@@ -184,3 +193,20 @@ test('an accepted answer with other facts than asked is ACCEPTED with condition 
   assert.deepEqual(r.result.condition_mismatches, ['accepted_cf_mismatch']);
   assert.equal(r.attempt.status, 'ACCEPTED');
 });
+
+for (const [name, fault] of [['lost response', { drop: true }], ['307 redirect', { redirect: true }]]) {
+  test(`single-send end to end: ${name} remains durably INDETERMINATE after reopening the store`, async (t) => {
+    if (skip) return t.skip(skip);
+    const r = await placeWith(null, `wire-single-send-${name.replace(/ /g, '-')}`, fault);
+    assert.equal(r.moneyReached, 1);
+    assert.equal(r.result.status, 'INDETERMINATE');
+    assert.equal(r.result.submit_sent_count, 1);
+    assert.equal(r.result.submit_transport_unknown, true);
+    assert.equal(r.attempt.status, 'INDETERMINATE');
+    assert.equal(r.sameKeyClaimed, false);
+    assert.equal(r.selectionReleased, false, 'Unknown delivery must continue owning the selection after restart');
+    assert.ok(r.attempt.native_request.body_sha256);
+    assert.ok(r.attempt.native_request.idempotency_key);
+    assert.equal(r.attempt.not_sent_proof, undefined);
+  });
+}

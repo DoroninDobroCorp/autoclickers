@@ -904,6 +904,7 @@ export class OneWinLiveCart {
     this.submitArmed = false;
     this.armedExpectation = null;
     this.submitSentCount = 0;
+    this.submitTransportUnknown = false;
     this.blocked = [];
     this.blocked_reasons = [];
     this._runtime = null;
@@ -1155,8 +1156,43 @@ export class OneWinLiveCart {
     }
     if (!boundary.ok) return block(boundary.reason, { signal: true });
 
+    if (this._guard && this._guard._isTestDouble()) {
+      // Legacy pure unit routes do not perform network I/O.
+      this.submitSentCount += 1;
+      return route.fallback();
+    }
+    if (typeof route.fetch !== 'function' || typeof route.fulfill !== 'function') {
+      return block('single_send_transport_unavailable', { signal: true });
+    }
+    // Playwright 1.63 can resend on a Basic challenge independently of maxRetries.
+    // Its pinned Node client exposes the effective context options here. If that
+    // inspection ceases to be available, refuse the transport rather than guess.
+    const contextOptions = this.page.context()._options;
+    if (!isPlainObject(contextOptions) || contextOptions.httpCredentials) {
+      return block('single_send_http_auth_unverified', { signal: true });
+    }
+    // The browser network stack can replay a POST on a reused connection.
+    // Forward the exact approved bytes once through the context's API transport.
+    // Neither redirects nor ECONNRESET may replay a native placement.
     this.submitSentCount += 1;
-    return route.fallback();
+    let response = null;
+    try {
+      response = await route.fetch({ postData: Buffer.from(raw, 'utf8'),
+        maxRetries: 0, maxRedirects: 0, timeout: 10000 });
+      if (response.status() >= 300 && response.status() < 400) {
+        // Never delegate a potentially body-preserving redirect back to Chromium.
+        this.submitTransportUnknown = true;
+        await route.abort('failed');
+        return;
+      }
+      await route.fulfill({ response });
+    } catch {
+      // Permission was spent: a lost answer is unknown delivery, not proof of no bet.
+      this.submitTransportUnknown = true;
+      try { await route.abort('failed'); } catch { /* request/page already gone */ }
+    } finally {
+      if (response) { try { await response.dispose(); } catch { /* response already disposed */ } }
+    }
   }
 
   slip() {
@@ -1369,6 +1405,7 @@ export class OneWinLiveCart {
     this.submitArmed = false;
     this.armedExpectation = null;
     if (!this.diagnosticMode) this.submitSentCount = 0; // counters are per run in production mode
+    this.submitTransportUnknown = false;
     let claimed = false;
     try {
       claimed = await this.attemptStore.claim(idempotencyKey, {
@@ -1714,6 +1751,7 @@ export class OneWinLiveCart {
       }
       result.elapsed_ms = Math.round(performance.now() - started);
       result.submit_sent_count = this.submitSentCount;
+      result.submit_transport_unknown = this.submitTransportUnknown;
       result.transport_guard = this._guard
         ? { ...this._guard.report(), coverage: this._lastCoverage ? this._lastCoverage.checks || null : null,
           violation_kinds: [...new Set(this._guard.violations.map((v) => v.kind))] }

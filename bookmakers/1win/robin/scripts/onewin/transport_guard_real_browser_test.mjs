@@ -440,7 +440,8 @@ async function oopifTargets() {
 }
 
 // the frame is cross-site to the page either at its own origin or, after a form post, at the bet origin
-const isForeignTarget = (hosts) => hosts.some((h) => h === 'xsite.example' || h === 'api-gateway.top-parser.com');
+const isForeignTarget = (hosts) => hosts.some((h) =>
+  h === new URL(stand.xsiteOrigin).hostname || h === new URL(stand.betOrigin).hostname);
 const FRAME_PATH = '/bets/get-max-bet-amount';
 const OOPIF_FRAMES = {
   fetch: (s, qs) => `<html><body><script>

@@ -16,7 +16,7 @@ for (const spec of [process.env.PLAYWRIGHT_MODULE, 'playwright', '/srv/betting/a
 const CHROME = process.env.PLAYWRIGHT_CHROMIUM_PATH
   || ['/home/ubuntu/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome'].find((p) => fs.existsSync(p));
 
-const HOST = 'api-gateway.top-parser.com';
+const HOST = '127.0.0.1';
 const plan = {
   idempotency_key: 'real-browser-1', stake: 1, currency: 'USDT',
   selection: { event_id: '40021999', market_id: '6271', selection_id: '10:193671744120169820:0', price: 1.87 },

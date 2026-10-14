@@ -177,11 +177,23 @@ self.addEventListener('message',async e=>{const m=e.data||{};
       if (isMoneyPath(url.pathname) && req.method !== 'GET') {
         betSeq += 1;
         log.money.push({ via: 'http', ...entry, id: betSeq });
-        if (hooks.onMakeBet) { try { hooks.onMakeBet(body, betSeq); } catch { /* observer */ } }
+        if (hooks.onMakeBet) { try { hooks.onMakeBet(body, betSeq, { headers: req.headers, socketRemotePort: req.socket.remotePort }); } catch { /* observer */ } }
         if (hooks.dropMakeBet > 0) {
           // the request was read and counted; the connection dies without any answer (network fault)
           hooks.dropMakeBet -= 1;
           req.socket.destroy();
+          return;
+        }
+        if (hooks.makeBetBasicChallenge) {
+          res.statusCode = 401;
+          res.setHeader('www-authenticate', 'Basic realm="synthetic-stand"');
+          res.end();
+          return;
+        }
+        if (hooks.makeBetRedirect) {
+          res.statusCode = 307;
+          res.setHeader('location', hooks.makeBetRedirect);
+          res.end();
           return;
         }
         const answer = hooks.makeBetAnswer ? hooks.makeBetAnswer(body, betSeq)
@@ -237,7 +249,7 @@ self.addEventListener('message',async e=>{const m=e.data||{};
     port, log, pages, hooks,
     tls,
     siteOrigin: `${tls ? 'https' : 'http'}://${SITE_HOST}:${port}`,
-    betOrigin: `${tls ? 'https' : 'http'}://${BET_HOST}:${port}`,
+    betOrigin: `${tls ? 'https' : 'http'}://127.0.0.1:${port}`,
     xsiteOrigin: `${tls ? 'https' : 'http'}://${XSITE_HOST}:${port}`,
     wsBase: `${tls ? 'wss' : 'ws'}://${BET_HOST}:${port}`,
     reset() { log.http.length = 0; log.pages.length = 0; log.ws.length = 0; log.money.length = 0; },
