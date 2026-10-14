@@ -33,6 +33,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 const { getResolvedSource, getTaskSourceKey } = require('./task-source.js');
 const { getTaskLimitContext } = require('./task-limits.js');
 
@@ -41,7 +42,7 @@ const LOCKED_MUTATORS = [
   'ensureFileExists', 'updateTask', 'markStopRequested', 'setTaskExecutionState', 'addTask', 'updateTaskById',
   'updateTaskBySignalId', 'removeTaskById', 'startProcessing', 'stopProcessing', 'markCompleted', 'markFailed',
   'markCancelled', 'cancelTask', 'removeTask', 'cleanup', 'clearHistory', 'recordBetResult', 'recordTaskResult',
-  'claimTask', 'renewClaim', 'releaseClaim', 'recordExecutionOutcome', 'resolveExecutionOutcome'
+  'claimTask', 'renewClaim', 'releaseClaim', 'markClaimHandoff', 'recordExecutionOutcome', 'resolveExecutionOutcome'
 ];
 
 function sleepSync(ms) {
@@ -61,6 +62,29 @@ function pidAlive(pid) {
   } catch (e) {
     return e.code === 'EPERM';
   }
+}
+
+// What identifies a process beyond its number: the moment it started (a pid is reused by the system).
+// Linux: field 22 of /proc/<pid>/stat plus the boot id; elsewhere `ps -o lstart=`. null = not obtainable.
+function processStartToken(pid) {
+  try {
+    if (process.platform === 'linux') {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      const boot = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+      return fields[19] ? `linux:${boot}:${fields[19]}` : null;
+    }
+    const out = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return out ? `ps:${out}` : null;
+  } catch {
+    return null;
+  }
+}
+
+let selfStartTokenCache;
+function selfStartToken() {
+  if (selfStartTokenCache === undefined) selfStartTokenCache = processStartToken(process.pid);
+  return selfStartTokenCache;
 }
 
 class TasksManager {
@@ -122,6 +146,8 @@ class TasksManager {
           const age = now - (task.createdAt || 0);
           if (age > 30000) {
             console.log(`🧹 Clearing stale current task for ${bookmakerId}: ${task.id} (age: ${(age/1000).toFixed(1)}s)`);
+            // an order that may have left is never forgotten: it stays in the history as unresolved
+            if (task.executionClaim && task.executionClaim.handedOff) data.history.push(this._leaseExpiredEntry(task, now));
             data.currentTasks[bookmakerId] = null;
             needUpdate = true;
           }
@@ -432,9 +458,10 @@ class TasksManager {
 
     const completedBets = data.history.filter(h => {
       const age = now - h.timestamp;
+      // an unresolved entry is exposure until somebody settles it: it is not aged out (cleanup keeps it too)
       return h.matchKey === matchKey && 
              (h.status === 'completed' || h.status === 'unresolved') && 
-             age < this.maxHistoryAge &&
+             (age < this.maxHistoryAge || h.status === 'unresolved') &&
              !h.testMode &&
              this._getHistoryLimitProfileKey(h) === limitContext.limitProfileKey;
     });
@@ -869,15 +896,10 @@ class TasksManager {
     // A consumer that claimed the current task and then lost its lease (crash, stall) must not hold
     // the slot for good: the slot is free again. Its work is not lost: the outcome of that attempt is
     // written by the consumer's recovery from its own journal and from the executor's durable attempt.
+    // A claim that was marked as handed off is NOT a cancellation: the order may be on its way, so the
+    // entry written here is `unresolved` (exposure kept) until the consumer's recovery settles it.
     if (current && current.executionClaim && Number(current.executionClaim.leaseUntil) < Date.now()) {
-      data.history.push({
-        matchKey: current.matchKey, outcome: current.outcome, timestamp: Date.now(), status: 'cancelled',
-        error: 'execution lease expired; the attempt is settled by the consumer from its journal',
-        step: 'claim_lease_expired', home: current.home, away: current.away, taskId: current.id,
-        source: current.source || 'analyzer', sourceType: current.sourceType || getResolvedSource(current).sourceType,
-        betCategory: current.betCategory || 'analyzer_normal', testMode: current.testMode || false,
-        bookmakerId: current.bookmakerId, accountId: current.accountId || null, claimConsumerId: current.executionClaim.consumerId
-      });
+      data.history.push(this._leaseExpiredEntry(current, Date.now()));
       data.currentTasks[bookmakerId] = null;
       data.processing[bookmakerId] = false;
       current = null;
@@ -1399,44 +1421,96 @@ class TasksManager {
     try {
       const raw = fs.readFileSync(lockPath, 'utf8');
       const info = JSON.parse(raw);
-      return info && typeof info === 'object' ? info : null;
+      return info && typeof info === 'object' && !Array.isArray(info) ? info : null;
     } catch (e) {
       return e.code === 'ENOENT' ? 'missing' : null;
     }
   }
 
-  // A holder is stale when its process is gone (same host) or it kept the lock for far longer than
-  // any critical section takes; an unreadable lock file is stale once it is a few seconds old.
-  _lockIsStale(lockPath, info) {
-    const now = Date.now();
-    if (info === null) {
-      try { return now - fs.statSync(lockPath).mtimeMs > 5000; } catch { return true; }
+  // Is the holder alive?  'live' | 'dead' | 'unknown'.  Age is NOT evidence: a process that is paused or
+  // stuck in a slow filesystem call is as much the owner after a minute as after a millisecond.
+  //   dead     same host and the process is gone, or the pid now belongs to another process (the start
+  //            token recorded in the lock differs from the one the pid has now)
+  //   live     same host, the process exists (and its start token, when both are known, matches)
+  //   unknown  another host, or metadata that is missing/corrupt: nobody guesses; an operator decides
+  _holderVerdict(info) {
+    if (!info || typeof info !== 'object' || !Number.isInteger(info.pid) || info.pid <= 0 || typeof info.host !== 'string') return 'unknown';
+    if (info.host !== os.hostname()) return 'unknown';
+    if (!pidAlive(info.pid)) return 'dead';
+    if (typeof info.start === 'string' && info.start) {
+      const now = info.pid === process.pid ? selfStartToken() : processStartToken(info.pid);
+      if (now && now !== info.start) return 'dead';
     }
-    if (info.host === os.hostname() && !pidAlive(info.pid)) return true;
-    return now - Number(info.at || 0) > 30000;
+    return 'live';
   }
 
-  // Only one reaper at a time (a guard file), and the holder is looked at again under the guard.
-  _reapStaleLock(lockPath) {
-    const guard = `${lockPath}.reap`;
-    let fd;
+  // Kept for callers that ask "may this lock be taken?": only a DEAD holder qualifies, never an old one.
+  _lockIsStale(lockPath, info) {
+    return this._holderVerdict(info) === 'dead';
+  }
+
+  // Create `target` with its content complete from the first instant (a hard link of a finished temp
+  // file): there is no moment at which the lock exists but is empty. EEXIST when it is already there.
+  _createExclusive(target, info) {
+    const tmp = `${target}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+    const fd = fs.openSync(tmp, 'wx', 0o600);
     try {
-      fd = fs.openSync(guard, 'wx');
-    } catch {
-      try { if (Date.now() - fs.statSync(guard).mtimeMs > 5000) fs.unlinkSync(guard); } catch { /* raced */ }
+      fs.writeSync(fd, JSON.stringify(info));
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    try {
+      fs.linkSync(tmp, target);
+    } finally {
+      try { fs.unlinkSync(tmp); } catch { /* gone */ }
+    }
+  }
+
+  _ownInfo(token) {
+    return { pid: process.pid, host: os.hostname(), token, at: Date.now(), start: selfStartToken() };
+  }
+
+  // The guard of a reaper is itself removed only when its holder is DEAD, and only by moving that exact
+  // file away and checking that it is the one that was judged: a guard that was replaced meanwhile is put back.
+  _reapDeadGuard(guard) {
+    const seen = this._readLockHolder(guard);
+    if (!seen || seen === 'missing' || this._holderVerdict(seen) !== 'dead') return;
+    const grave = `${guard}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+    try { fs.renameSync(guard, grave); } catch { return; }
+    const moved = this._readLockHolder(grave);
+    if (moved && moved !== 'missing' && moved.token === seen.token) {
+      try { fs.unlinkSync(grave); } catch { /* gone */ }
+      return;
+    }
+    try { fs.linkSync(grave, guard); } catch { /* somebody else created one: theirs stands */ }
+    try { fs.unlinkSync(grave); } catch { /* gone */ }
+  }
+
+  // Remove a lock whose holder is dead. One reaper at a time (guard); the holder is looked at again under
+  // the guard and the lock is removed only if it is still the very lock that was judged (same token) and
+  // its holder is still dead: a lock that a NEW owner took in between is never touched.
+  _reapDeadLock(lockPath, seen) {
+    const guard = `${lockPath}.reap`;
+    const mine = this._ownInfo(crypto.randomBytes(8).toString('hex'));
+    try {
+      this._createExclusive(guard, mine);
+    } catch (e) {
+      if (e.code === 'EEXIST') this._reapDeadGuard(guard);
       return false;
     }
     try {
-      const info = this._readLockHolder(lockPath);
-      if (info === 'missing') return true;
-      if (this._lockIsStale(lockPath, info)) {
-        try { fs.unlinkSync(lockPath); } catch { /* raced */ }
-        return true;
-      }
-      return false;
+      const now = this._readLockHolder(lockPath);
+      if (now === 'missing') return true;
+      if (!now || now.token !== seen.token) return false;
+      if (this._holderVerdict(now) !== 'dead') return false;
+      fs.unlinkSync(lockPath);
+      return true;
     } finally {
-      try { fs.closeSync(fd); } catch { /* closed */ }
-      try { fs.unlinkSync(guard); } catch { /* gone */ }
+      const g = this._readLockHolder(guard);
+      if (g && g !== 'missing' && g.token === mine.token) {
+        try { fs.unlinkSync(guard); } catch { /* gone */ }
+      }
     }
   }
 
@@ -1447,22 +1521,22 @@ class TasksManager {
     const deadline = Date.now() + this._lockTimeoutMs;
     let delay = 2;
     for (;;) {
-      let fd = null;
       try {
-        fd = fs.openSync(lockPath, 'wx', 0o600);
-        fs.writeSync(fd, JSON.stringify({ pid: process.pid, host: os.hostname(), token, at: Date.now() }));
-        fs.closeSync(fd);
-        fd = null;
+        this._createExclusive(lockPath, this._ownInfo(token));
         break;
       } catch (e) {
-        if (fd !== null) { try { fs.closeSync(fd); } catch { /* closed */ } }
         // A directory that does not exist or cannot be written cannot hold a consistent file either:
         // behave as before (the write itself reports the problem) instead of failing the constructor.
         if (['ENOENT', 'EACCES', 'EROFS', 'EPERM'].includes(e.code)) return fn();
         if (e.code !== 'EEXIST') throw e;
-        const info = this._readLockHolder(lockPath);
-        if (info !== 'missing' && this._lockIsStale(lockPath, info) && this._reapStaleLock(lockPath)) continue;
-        if (Date.now() > deadline) throw new Error('TASKS_FILE_LOCK_TIMEOUT');
+        const holder = this._readLockHolder(lockPath);
+        if (holder === 'missing') continue;
+        const verdict = holder === null ? 'unknown' : this._holderVerdict(holder);
+        if (verdict === 'dead' && this._reapDeadLock(lockPath, holder)) continue;
+        if (Date.now() > deadline) {
+          if (verdict === 'unknown') throw new Error('TASKS_FILE_LOCK_UNKNOWN_HOLDER: the lock file has no verifiable owner (another host or damaged); remove it only after checking');
+          throw new Error(`TASKS_FILE_LOCK_TIMEOUT: held by pid ${holder && holder.pid} (${verdict})`);
+        }
         sleepSync(delay);
         delay = Math.min(delay * 2, 40);
       }
@@ -1537,6 +1611,48 @@ class TasksManager {
     if (location.slot === 'current') data.processing[location.bookmakerId] = false;
     if (!this.atomicWrite(data)) return { released: false, reason: 'write_failed' };
     return { released: true };
+  }
+
+  /**
+   * The consumer is about to hand the order to the executor. From this moment a lost lease no longer
+   * proves that nothing was sent: the claim says so, and when the lease expires the history gets an
+   * `unresolved` placeholder (it counts as exposure) instead of a cancellation. The consumer's own
+   * recovery replaces the placeholder with the settled outcome of that attempt key.
+   */
+  markClaimHandoff(taskId, token, attemptKey, { now = Date.now() } = {}) {
+    if (typeof attemptKey !== 'string' || !attemptKey) throw new Error('markClaimHandoff requires attemptKey');
+    const data = this.read();
+    const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    if (!location || location.slot !== 'current') return { marked: false, reason: 'task_not_current' };
+    const claim = location.task.executionClaim;
+    if (!claim || claim.token !== token) return { marked: false, reason: 'claim_lost' };
+    if (claim.handedOff && claim.handedOff.attemptKey === attemptKey) return { marked: true, already: true };
+    claim.handedOff = { attemptKey, at: now };
+    if (!this.atomicWrite(data)) return { marked: false, reason: 'write_failed' };
+    return { marked: true };
+  }
+
+  _leaseExpiredEntry(task, now) {
+    const claim = task.executionClaim || {};
+    const handedKey = claim.handedOff && claim.handedOff.attemptKey;
+    if (handedKey) {
+      const entry = this._executionHistoryEntry(task, 'unresolved', {
+        attemptKey: handedKey, status: 'unresolved',
+        reason: 'order handed to the executor; the consumer lost its lease before an outcome was recorded', stake: task.stake
+      }, now);
+      entry.step = 'handoff_lease_expired';
+      entry.executionOutcome.placeholder = 'lease_expired_after_handoff';
+      entry.claimConsumerId = claim.consumerId;
+      return entry;
+    }
+    return {
+      matchKey: task.matchKey, outcome: task.outcome, timestamp: now, status: 'cancelled',
+      error: 'execution lease expired; the attempt is settled by the consumer from its journal',
+      step: 'claim_lease_expired', home: task.home, away: task.away, taskId: task.id,
+      source: task.source || 'analyzer', sourceType: task.sourceType || getResolvedSource(task).sourceType,
+      betCategory: task.betCategory || 'analyzer_normal', testMode: task.testMode || false,
+      bookmakerId: task.bookmakerId, accountId: task.accountId || null, claimConsumerId: claim.consumerId
+    };
   }
 
   _executionHistoryEntry(task, status, outcome, timestamp) {
@@ -1618,8 +1734,32 @@ class TasksManager {
       throw new Error('accepted outcome requires the ticketId of the attempt receipt');
     }
     const data = this.read();
-    const existing = data.history.find((h) => h.executionOutcome && h.executionOutcome.attemptKey === attemptKey);
+    const existingIndex = data.history.findIndex((h) => h.executionOutcome && h.executionOutcome.attemptKey === attemptKey);
+    const existing = existingIndex >= 0 ? data.history[existingIndex] : null;
     const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    // The entry written when a lease expired after the hand-off is a placeholder: the consumer's record of
+    // the same attempt key replaces it (exactly once; a settled entry is never replaced).
+    if (existing && existing.status === 'unresolved' && existing.executionOutcome.placeholder) {
+      const task = location ? location.task : (outcome.taskSnapshot && outcome.taskSnapshot.id === taskId ? outcome.taskSnapshot : null);
+      if (task && task.bookmakerId) {
+        const entry = this._executionHistoryEntry(task, status, outcome, Date.now());
+        entry.executionOutcome.replacedPlaceholder = { at: existing.timestamp, kind: existing.executionOutcome.placeholder };
+        data.history[existingIndex] = entry;
+        if (location) {
+          const { bookmakerId } = location;
+          if (location.slot === 'current') {
+            const pending = data.pendingTasks[bookmakerId];
+            data.currentTasks[bookmakerId] = pending || null;
+            if (pending) data.pendingTasks[bookmakerId] = null;
+            data.processing[bookmakerId] = false;
+          } else {
+            data.pendingTasks[bookmakerId] = null;
+          }
+        }
+        if (!this.atomicWrite(data)) return { recorded: false, reason: 'write_failed' };
+        return { recorded: true, entry, replacedPlaceholder: true };
+      }
+    }
     if (existing) {
       // already settled: nothing new is recorded. A re-delivered copy of the same task that sits in
       // the queue again is taken out of its slot, otherwise it would block the bookmaker for good.
