@@ -103,7 +103,7 @@ export async function startStand({ tls = false } = {}) {
   };
   let betSeq = 0;
   // test hook: (body) => JSON-able answer of make-bet-v2; null = the default accepted answer
-  const hooks = { makeBetAnswer: null, makeBetDelayMs: 0, onMakeBet: null };
+  const hooks = { makeBetAnswer: null, makeBetDelayMs: 0, onMakeBet: null, dropMakeBet: 0 };
   const isMoneyPath = (p) => /\/bets\/(?:make-bet|refund|cashout|sell)|\/fortune-wheel\/make-roll|\/bets\/api\/v1\/user\/bets\/ordinary/i.test(p);
 
   const pages = new Map();
@@ -159,6 +159,12 @@ self.addEventListener('message',async e=>{const m=e.data||{};
         betSeq += 1;
         log.money.push({ via: 'http', ...entry, id: betSeq });
         if (hooks.onMakeBet) { try { hooks.onMakeBet(body, betSeq); } catch { /* observer */ } }
+        if (hooks.dropMakeBet > 0) {
+          // the request was read and counted; the connection dies without any answer (network fault)
+          hooks.dropMakeBet -= 1;
+          req.socket.destroy();
+          return;
+        }
         const answer = hooks.makeBetAnswer ? hooks.makeBetAnswer(body, betSeq)
           : { result: { success: { betId: `STAND-${betSeq}`, cf: body?.coupon?.selections?.[0]?.cf ?? 1.87,
             amount: body?.amount ?? 1, currencyCode: body?.currencyCode ?? 'USDT',
