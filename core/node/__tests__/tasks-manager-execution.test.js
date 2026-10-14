@@ -51,6 +51,19 @@ describe('TasksManager execution ownership and outcomes', () => {
       });
     }, 60000);
 
+    test('temp files of writers that died between write and rename are removed at start, a fresh one is left', () => {
+      const old = `${file}.4242.deadbeef.tmp`;
+      const fresh = `${file}.4343.cafebabe.tmp`;
+      fs.writeFileSync(old, '{"half');
+      fs.writeFileSync(fresh, '{"half');
+      const past = new Date(Date.now() - 5 * 60 * 1000);
+      fs.utimesSync(old, past, past);
+      new TasksManager({ tasksFilePath: file });
+      expect(fs.existsSync(old)).toBe(false);
+      expect(fs.existsSync(fresh)).toBe(true);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).history).toEqual([]);
+    });
+
     test('a lock of a dead process is reaped, a lock of a live process is waited for and then refused', () => {
       fs.writeFileSync(`${file}.lock`, JSON.stringify({ pid: 2147483646, host: os.hostname(), token: 'dead', at: Date.now() }));
       expect(manager.startProcessing('1win')).toBe(true);

@@ -91,6 +91,7 @@ class TasksManager {
       this[name] = (...args) => this._withLock(() => original.apply(this, args));
     }
 
+    this._removeStaleTempFiles();
     this.ensureFileExists();
   }
 
@@ -150,6 +151,22 @@ class TasksManager {
         this.atomicWrite(data);
       }
     }
+  }
+
+  // Temp files of writers that died between write and rename (unique names, so they would pile up).
+  _removeStaleTempFiles(maxAgeMs = 60000) {
+    try {
+      const dir = path.dirname(this.tasksFilePath);
+      const prefix = `${path.basename(this.tasksFilePath)}.`;
+      const now = Date.now();
+      for (const name of fs.readdirSync(dir)) {
+        if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+        const full = path.join(dir, name);
+        try {
+          if (now - fs.statSync(full).mtimeMs > maxAgeMs) fs.unlinkSync(full);
+        } catch { /* raced with its writer or already gone */ }
+      }
+    } catch { /* directory unreadable: nothing to clean */ }
   }
 
   /**
