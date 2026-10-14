@@ -30,9 +30,38 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { getResolvedSource, getTaskSourceKey } = require('./task-source.js');
 const { getTaskLimitContext } = require('./task-limits.js');
+
+// Methods that read the file, change it and write it back.
+const LOCKED_MUTATORS = [
+  'ensureFileExists', 'updateTask', 'markStopRequested', 'setTaskExecutionState', 'addTask', 'updateTaskById',
+  'updateTaskBySignalId', 'removeTaskById', 'startProcessing', 'stopProcessing', 'markCompleted', 'markFailed',
+  'markCancelled', 'cancelTask', 'removeTask', 'cleanup', 'clearHistory', 'recordBetResult', 'recordTaskResult',
+  'claimTask', 'renewClaim', 'releaseClaim', 'recordExecutionOutcome', 'resolveExecutionOutcome'
+];
+
+function sleepSync(ms) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* spin */ }
+  }
+}
+
+function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+}
 
 class TasksManager {
   /**
@@ -48,7 +77,18 @@ class TasksManager {
     this.tasksFilePath = config.tasksFilePath;
     this.maxHistoryAge = config.maxHistoryAge || 3 * 24 * 60 * 60 * 1000; // 3 days
     this.betting = config.betting || {};
-    
+    this._lockDepth = 0;
+    this._lockTimeoutMs = Number(config.lockTimeoutMs) > 0 ? Number(config.lockTimeoutMs) : 10000;
+
+    // Every read-modify-write of the file runs under one cross-process lock (lost updates between a
+    // producer and a consumer in different processes). Read-only methods rely on the atomic rename
+    // of atomicWrite and stay lock-free. The lock is re-entrant within an instance.
+    for (const name of LOCKED_MUTATORS) {
+      const original = this[name];
+      if (typeof original !== 'function') continue;
+      this[name] = (...args) => this._withLock(() => original.apply(this, args));
+    }
+
     this.ensureFileExists();
   }
 
@@ -73,7 +113,9 @@ class TasksManager {
       
       for (const bookmakerId in data.currentTasks) {
         const task = data.currentTasks[bookmakerId];
-        if (task) {
+        // A task that a consumer holds under a live lease is not stale and its processing flag is not stuck.
+        const leased = Boolean(task && task.executionClaim && Number(task.executionClaim.leaseUntil) > now);
+        if (task && !leased) {
           const age = now - (task.createdAt || 0);
           if (age > 30000) {
             console.log(`🧹 Clearing stale current task for ${bookmakerId}: ${task.id} (age: ${(age/1000).toFixed(1)}s)`);
@@ -83,7 +125,7 @@ class TasksManager {
         }
         
         // Reset processing flags
-        if (data.processing[bookmakerId]) {
+        if (data.processing[bookmakerId] && !leased) {
           console.log(`🔓 Resetting processing flag for ${bookmakerId} (stuck from previous run)`);
           data.processing[bookmakerId] = false;
           needUpdate = true;
@@ -186,9 +228,17 @@ class TasksManager {
    * @returns {boolean} Success status
    */
   atomicWrite(data) {
-    const tmpFile = this.tasksFilePath + '.tmp';
+    // unique temp name: two writers never share a temp file; fsync before the rename so that a crash
+    // leaves either the old or the new complete file
+    const tmpFile = `${this.tasksFilePath}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
     try {
-      fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
+      const fd = fs.openSync(tmpFile, 'w');
+      try {
+        fs.writeSync(fd, JSON.stringify(data, null, 2));
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
       fs.renameSync(tmpFile, this.tasksFilePath); // Atomic operation!
       return true;
     } catch (e) {
@@ -364,7 +414,7 @@ class TasksManager {
     const completedBets = data.history.filter(h => {
       const age = now - h.timestamp;
       return h.matchKey === matchKey && 
-             h.status === 'completed' && 
+             (h.status === 'completed' || h.status === 'unresolved') && 
              age < this.maxHistoryAge &&
              !h.testMode &&
              this._getHistoryLimitProfileKey(h) === limitContext.limitProfileKey;
@@ -1300,6 +1350,302 @@ class TasksManager {
     return this.atomicWrite(data);
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Cross-process lock and execution ownership (additive; see the consumer of the 1win queue)
+  // ---------------------------------------------------------------------------------------------
+
+  _lockPath() {
+    return `${this.tasksFilePath}.lock`;
+  }
+
+  _readLockHolder(lockPath) {
+    try {
+      const raw = fs.readFileSync(lockPath, 'utf8');
+      const info = JSON.parse(raw);
+      return info && typeof info === 'object' ? info : null;
+    } catch (e) {
+      return e.code === 'ENOENT' ? 'missing' : null;
+    }
+  }
+
+  // A holder is stale when its process is gone (same host) or it kept the lock for far longer than
+  // any critical section takes; an unreadable lock file is stale once it is a few seconds old.
+  _lockIsStale(lockPath, info) {
+    const now = Date.now();
+    if (info === null) {
+      try { return now - fs.statSync(lockPath).mtimeMs > 5000; } catch { return true; }
+    }
+    if (info.host === os.hostname() && !pidAlive(info.pid)) return true;
+    return now - Number(info.at || 0) > 30000;
+  }
+
+  // Only one reaper at a time (a guard file), and the holder is looked at again under the guard.
+  _reapStaleLock(lockPath) {
+    const guard = `${lockPath}.reap`;
+    let fd;
+    try {
+      fd = fs.openSync(guard, 'wx');
+    } catch {
+      try { if (Date.now() - fs.statSync(guard).mtimeMs > 5000) fs.unlinkSync(guard); } catch { /* raced */ }
+      return false;
+    }
+    try {
+      const info = this._readLockHolder(lockPath);
+      if (info === 'missing') return true;
+      if (this._lockIsStale(lockPath, info)) {
+        try { fs.unlinkSync(lockPath); } catch { /* raced */ }
+        return true;
+      }
+      return false;
+    } finally {
+      try { fs.closeSync(fd); } catch { /* closed */ }
+      try { fs.unlinkSync(guard); } catch { /* gone */ }
+    }
+  }
+
+  _withLock(fn) {
+    if (this._lockDepth > 0) return fn();
+    const lockPath = this._lockPath();
+    const token = crypto.randomBytes(8).toString('hex');
+    const deadline = Date.now() + this._lockTimeoutMs;
+    let delay = 2;
+    for (;;) {
+      let fd = null;
+      try {
+        fd = fs.openSync(lockPath, 'wx', 0o600);
+        fs.writeSync(fd, JSON.stringify({ pid: process.pid, host: os.hostname(), token, at: Date.now() }));
+        fs.closeSync(fd);
+        fd = null;
+        break;
+      } catch (e) {
+        if (fd !== null) { try { fs.closeSync(fd); } catch { /* closed */ } }
+        // A directory that does not exist or cannot be written cannot hold a consistent file either:
+        // behave as before (the write itself reports the problem) instead of failing the constructor.
+        if (['ENOENT', 'EACCES', 'EROFS', 'EPERM'].includes(e.code)) return fn();
+        if (e.code !== 'EEXIST') throw e;
+        const info = this._readLockHolder(lockPath);
+        if (info !== 'missing' && this._lockIsStale(lockPath, info) && this._reapStaleLock(lockPath)) continue;
+        if (Date.now() > deadline) throw new Error('TASKS_FILE_LOCK_TIMEOUT');
+        sleepSync(delay);
+        delay = Math.min(delay * 2, 40);
+      }
+    }
+    this._lockDepth = 1;
+    try {
+      return fn();
+    } finally {
+      this._lockDepth = 0;
+      // release only a lock that is still ours
+      const info = this._readLockHolder(lockPath);
+      if (info && info !== 'missing' && info.token === token) {
+        try { fs.unlinkSync(lockPath); } catch { /* reaped */ }
+      }
+    }
+  }
+
+  _claimIsLive(task, now = Date.now()) {
+    return Boolean(task && task.executionClaim && Number(task.executionClaim.leaseUntil) > now);
+  }
+
+  /**
+   * Take the execution lease of the CURRENT task of its bookmaker. Two consumers (processes) cannot
+   * both hold it: the second is told who holds it and until when. The processing flag is set in the
+   * same write, so producers see the slot as busy. A pending task is never claimed (it waits).
+   */
+  claimTask(taskId, { consumerId, leaseMs = 30000, now = Date.now() } = {}) {
+    if (!consumerId || typeof consumerId !== 'string') throw new Error('claimTask requires consumerId');
+    const data = this.read();
+    const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    if (!location) return { claimed: false, reason: 'task_not_found' };
+    if (location.slot !== 'current') return { claimed: false, reason: 'task_not_current' };
+    const task = location.task;
+    if (task.stopRequested === true) return { claimed: false, reason: 'stop_requested' };
+    const held = task.executionClaim;
+    if (held && this._claimIsLive(task, now) && held.consumerId !== consumerId) {
+      return { claimed: false, reason: 'claimed_by_other', holder: held.consumerId, leaseUntil: held.leaseUntil };
+    }
+    const claim = {
+      consumerId,
+      token: crypto.randomUUID(),
+      claimedAt: now,
+      leaseUntil: now + Number(leaseMs),
+      takeover: Boolean(held && held.consumerId !== consumerId),
+      generation: Number(held && held.generation ? held.generation : 0) + 1
+    };
+    task.executionClaim = claim;
+    data.currentTasks[location.bookmakerId] = task;
+    data.processing[location.bookmakerId] = true;
+    if (!this.atomicWrite(data)) return { claimed: false, reason: 'write_failed' };
+    return { claimed: true, claim, bookmakerId: location.bookmakerId };
+  }
+
+  renewClaim(taskId, token, { leaseMs = 30000, now = Date.now() } = {}) {
+    const data = this.read();
+    const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    if (!location || location.slot !== 'current') return { renewed: false, reason: 'task_not_current' };
+    const claim = location.task.executionClaim;
+    if (!claim || claim.token !== token) return { renewed: false, reason: 'claim_lost' };
+    claim.leaseUntil = now + Number(leaseMs);
+    if (!this.atomicWrite(data)) return { renewed: false, reason: 'write_failed' };
+    return { renewed: true, leaseUntil: claim.leaseUntil };
+  }
+
+  releaseClaim(taskId, token) {
+    const data = this.read();
+    const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    if (!location) return { released: false, reason: 'task_not_found' };
+    const claim = location.task.executionClaim;
+    if (!claim || claim.token !== token) return { released: false, reason: 'claim_lost' };
+    delete location.task.executionClaim;
+    if (location.slot === 'current') data.processing[location.bookmakerId] = false;
+    if (!this.atomicWrite(data)) return { released: false, reason: 'write_failed' };
+    return { released: true };
+  }
+
+  _executionHistoryEntry(task, status, outcome, timestamp) {
+    const base = {
+      matchKey: task.matchKey,
+      outcome: task.outcome,
+      timestamp,
+      home: task.home,
+      away: task.away,
+      taskId: task.id,
+      source: task.source || 'analyzer',
+      sourceType: task.sourceType || getResolvedSource(task).sourceType,
+      sourceVariant: task.sourceVariant || null,
+      sourceProfileId: task.sourceProfileId || null,
+      betCategory: task.betCategory || 'analyzer_normal',
+      limitProfileKey: task.limitProfileKey || this.resolveLimitContext(task).limitProfileKey,
+      isHighROI: task.isHighROI || false,
+      expectedROI: task.expectedROI,
+      // a synthetic (stand) result is a test entry: it never counts as exposure and never blocks a match
+      testMode: Boolean(task.testMode) || outcome.synthetic === true,
+      bookmakerId: task.bookmakerId,
+      accountId: task.accountId || null,
+      mode: task.mode || (task.isPrematch ? 'prematch' : 'live'),
+      originChatId: task.telegramContext?.originChatId || task.originChatId || null,
+      signalId: task.telegramContext?.signalId || null,
+      stake: outcome.stake ?? task.stake,
+      executionOutcome: {
+        attemptKey: outcome.attemptKey,
+        status: outcome.status,
+        reason: outcome.reason || null,
+        errorCode: outcome.errorCode || null,
+        synthetic: outcome.synthetic === true,
+        transportEnvironment: outcome.transportEnvironment || null,
+        recordedAt: timestamp
+      }
+    };
+    switch (status) {
+      case 'accepted':
+        return { ...base, status: 'completed', odds: outcome.odds, ticketId: outcome.ticketId, dryRun: false };
+      case 'rejected':
+        return this._annotateFailureEntry({
+          ...base, status: 'failed', error: outcome.reason || outcome.errorCode || 'rejected', step: 'bookmaker_submit',
+          failureStage: 'bookmaker_submit', failureClass: outcome.errorCode || null, submitReached: true, bookmakerRejected: true
+        });
+      case 'not_sent':
+        // nothing reached the bookmaker: not a failure of the bookmaker, never counted towards a match block
+        return { ...base, status: 'cancelled', error: outcome.reason || 'not_sent', step: 'not_sent' };
+      case 'unresolved':
+        return { ...base, status: 'unresolved', error: outcome.reason || 'outcome_unknown', step: 'submit_unresolved', submitReached: true };
+      case 'dry_run':
+        return { ...base, status: 'dry_run', odds: outcome.odds, dryRun: true };
+      default:
+        throw new Error(`UNKNOWN_EXECUTION_STATUS:${status}`);
+    }
+  }
+
+  /**
+   * Write the outcome of one execution attempt to the history and release the slot of the task.
+   * Idempotent per attemptKey: a repeated call (restart, duplicate delivery) records nothing new.
+   *
+   *   accepted    completed + ticketId          (counts as exposure)
+   *   rejected    failed, bookmakerRejected     (proved refusal)
+   *   not_sent    cancelled                     (nothing was forwarded)
+   *   unresolved  unresolved                    (outcome unknown, counts as exposure, never aged out,
+   *                                              not a failure: it does not block the match)
+   *   dry_run     dry_run                       (no bet; counted nowhere)
+   *
+   * The task may already be gone from the queue (stale-task cleanup after a crash): then
+   * `taskSnapshot` (what the consumer journalled at claim time) is used for the history entry.
+   */
+  recordExecutionOutcome(taskId, outcome = {}) {
+    if (!outcome || typeof outcome !== 'object') throw new Error('execution outcome required');
+    const { status, attemptKey } = outcome;
+    if (!['accepted', 'rejected', 'not_sent', 'unresolved', 'dry_run'].includes(status)) {
+      throw new Error(`UNKNOWN_EXECUTION_STATUS:${status}`);
+    }
+    if (typeof attemptKey !== 'string' || !attemptKey) throw new Error('attemptKey required');
+    if (status === 'accepted' && (outcome.ticketId === undefined || outcome.ticketId === null || outcome.ticketId === '')) {
+      throw new Error('accepted outcome requires the ticketId of the attempt receipt');
+    }
+    const data = this.read();
+    const existing = data.history.find((h) => h.executionOutcome && h.executionOutcome.attemptKey === attemptKey);
+    if (existing) {
+      const same = existing.executionOutcome.status === status;
+      return { recorded: false, already: true, same, entry: existing };
+    }
+    const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    const task = location ? location.task : (outcome.taskSnapshot && outcome.taskSnapshot.id === taskId ? outcome.taskSnapshot : null);
+    if (!task || !task.bookmakerId) return { recorded: false, reason: 'task_not_found' };
+    const entry = this._executionHistoryEntry(task, status, outcome, Date.now());
+    data.history.push(entry);
+    if (location) {
+      const { bookmakerId } = location;
+      if (location.slot === 'current') {
+        const pending = data.pendingTasks[bookmakerId];
+        data.currentTasks[bookmakerId] = pending || null;
+        if (pending) data.pendingTasks[bookmakerId] = null;
+        data.processing[bookmakerId] = false;
+      } else {
+        data.pendingTasks[bookmakerId] = null;
+      }
+    }
+    if (!this.atomicWrite(data)) return { recorded: false, reason: 'write_failed' };
+    return { recorded: true, entry };
+  }
+
+  /**
+   * Reconcile an unresolved outcome with the bookmaker's history (by identity, found by an operator or
+   * a reconciler): the entry becomes completed (with the bookmaker bet id) or cancelled (not placed).
+   * Never touches an entry that is not unresolved, and is idempotent for the same resolution.
+   */
+  resolveExecutionOutcome(attemptKey, resolution = {}) {
+    const data = this.read();
+    const entry = data.history.find((h) => h.executionOutcome && h.executionOutcome.attemptKey === attemptKey);
+    if (!entry) return { resolved: false, reason: 'attempt_not_in_history' };
+    const kind = resolution.resolution;
+    if (!['accepted', 'not_placed'].includes(kind)) throw new Error(`UNKNOWN_RESOLUTION:${kind}`);
+    if (entry.status !== 'unresolved') {
+      const done = entry.executionOutcome.resolution && entry.executionOutcome.resolution.kind === kind;
+      return { resolved: false, already: Boolean(done), reason: done ? 'already_resolved' : 'not_unresolved', status: entry.status };
+    }
+    if (kind === 'accepted') {
+      if (resolution.ticketId === undefined || resolution.ticketId === null || resolution.ticketId === '') {
+        throw new Error('accepted resolution requires the bookmaker bet id');
+      }
+      entry.status = 'completed';
+      entry.ticketId = resolution.ticketId;
+      if (resolution.odds !== undefined) entry.odds = resolution.odds;
+      entry.dryRun = false;
+      delete entry.step;
+      delete entry.error;
+    } else {
+      entry.status = 'cancelled';
+      entry.step = 'reconciled_not_placed';
+      entry.error = 'reconciled_not_placed';
+    }
+    entry.executionOutcome.resolution = {
+      kind,
+      evidence: resolution.evidence || null,
+      operator: resolution.operator || null,
+      resolvedAt: Date.now()
+    };
+    if (!this.atomicWrite(data)) return { resolved: false, reason: 'write_failed' };
+    return { resolved: true, entry };
+  }
+
   /**
    * Get history for bookmaker
    * @param {string} bookmakerId - Bookmaker identifier
@@ -1329,7 +1675,7 @@ class TasksManager {
     // Remove entries older than maxHistoryAge
     data.history = data.history.filter(h => {
       const age = now - h.timestamp;
-      return age < this.maxHistoryAge;
+      return age < this.maxHistoryAge || h.status === 'unresolved';
     });
 
     const cleaned = oldHistoryCount - data.history.length;
@@ -1479,6 +1825,7 @@ class TasksManager {
       historyTotal: data.history.length,
       completed: completed,
       failed: failed,
+      unresolved: data.history.filter(h => h.status === 'unresolved').length,
       successRate: (completed + failed > 0) ? ((completed / (completed + failed)) * 100).toFixed(1) : 0
     };
   }
