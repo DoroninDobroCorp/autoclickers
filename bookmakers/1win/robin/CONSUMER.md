@@ -89,7 +89,8 @@ loopback listener (a consumer on another host reaches it through a tunnel).
 | `POST /v1/evidence` | read-only: executor quote + account state + UI strings for a task identity; `available:false` + reason when no provider is configured |
 | `POST /v1/orders` | `automation-executor-order.v1` (plan, provenance, consumer id). Returns at once (`202`); a key that is already known is **not** executed again |
 | `POST /v1/dry-runs` | the same plan through the read-only cart; nothing can be placed |
-| `GET /v1/attempts/<key>` | durable attempt + `in_flight` + `last_run` |
+| `GET /v1/attempts/<key>` | durable attempt + `in_flight` + `last_run` + `fenced` (the tombstone of a key that can never be claimed, else `null`) |
+| `POST /v1/attempts/<key>/fence` | **not-sent fence**: when the store has no attempt for the key, write a durable tombstone (every later claim, and so every placement, of that key is impossible; a late `POST /v1/orders` is refused `ORDER_FENCED`); when an attempt exists nothing changes and it is returned. The answer names the store (`store.path_sha256`) that acknowledged it |
 | `POST /v1/attempts/<key>/withdraw` | request a withdrawal (read at the point of no return); before the claim it leaves a tombstone |
 | `POST /v1/attempts/<key>/revisions` | `receipt_reconciled` / `reconciled_not_placed` for an `INDETERMINATE` attempt only |
 | `POST /v1/recover` | settle attempts whose owner is gone; never re-sends |
@@ -117,11 +118,36 @@ An unresolved outcome is never re-sent: the attempt key is durable, one live int
 enforced by the attempt store, and the native `idempotencyKey` the first-party page put on the wire is stored in
 the attempt **before** the request is allowed to leave. Resolution is by identity (`reconcile`).
 
+### When "the executor has not heard of it" means "not sent"
+
+Never by itself. A request that was handed over may still be on its way (tunnel, proxy, a queue in the
+executor), so a lookup that finds no attempt, no run in flight and no last run proves nothing. The consumer
+calls "not sent" in exactly these cases, and no other:
+
+| evidence | where it comes from |
+|---|---|
+| no `handed_off` record in the consumer's own journal (the hand-off is journalled **before** the request is made) | own journal |
+| the executor refused the order with an answer of its own (`ExecutorRefused`: busy, gate closed, schema…) | executor answer |
+| the **fence** was acknowledged by the store the order was handed to (`store.path_sha256` equals the one journalled at hand-off) | executor store, under its lock |
+| the attempt is `WITHDRAWN` / `REJECTED` | durable attempt |
+
+Everything else stays **`unresolved`** (reasons `order_delivery_unknown_after_lost_answer` /
+`order_delivery_unknown_after_restart` + the reason the fence was not acknowledged): the entry keeps counting as
+exposure, nothing is sent a second time, and every start of the consumer asks again (fence, then attempt). A
+late `ACCEPTED` of that exact attempt resolves the entry to `completed` + ticket (idempotent for queue and export);
+an acknowledged fence resolves it to `cancelled` (`not_placed`).
+
+Between the hand-off and the outcome the queue claim carries `handedOff.attemptKey` (`mark_handoff`, written
+before the request is made). If the lease is lost meanwhile (consumer died), the slot is freed with an
+**`unresolved` placeholder** (step `handoff_lease_expired`, counted as exposure), not with a cancellation; the
+consumer's recovery replaces it in place with the settled outcome of that attempt key.
+
 ## Restart
 
 | point | what survives | what the restart does |
 |---|---|---|
-| consumer dies before the hand-off | journal `claimed/built(/handed_off)` | asks the executor: never heard → `not_sent`; the slot is freed |
+| consumer dies before the request was made (journal ends at `claimed` / `built`) | journal | own journal proves it: `not_sent`; the slot is freed |
+| consumer dies after `handed_off` was journalled (the request may or may not have left; it may still be on its way) | journal `handed_off` (+ queue `handedOff` mark) | attempt known → followed; unknown → **fence**: acknowledged → `not_sent`, otherwise `unresolved` (never `not_sent`) |
 | executor dies after the claim, before SUBMITTING | `CLAIMED/PRE_CHECK_PASSED` | executor start: `WITHDRAWN`; consumer: late resolution → `cancelled(reconciled)` |
 | executor dies after SUBMITTING / request received | `SUBMITTING`, native key | executor start: `INDETERMINATE`; stays `unresolved`; operator reconciles |
 | consumer dies after the answer, before the queue write | journal `observed/decided` | writes the queue (idempotent), exports |
@@ -135,3 +161,22 @@ the attempt **before** the request is allowed to leave. Resolution is by identit
 * Network-stack retry of a POST and browser-process GET prefetch cannot be decided by the transport guard
   (see HANDOFF, `transport_residuals_probe.mjs`).
 * Settlement, ROI, ledger: out of scope; the export says `settlement: pending`, `financial_result: not_recorded`.
+
+## Rollback (what an older TasksManager does not know)
+
+An older `tasks-manager.js` ignores `executionClaim.handedOff`, does not count `unresolved` entries as exposure
+and its `cleanup()` removes them after three days. Rolling the **queue code** back is therefore not "continue
+the money route with older code":
+
+1. Stop the consumer first and leave **`mode: disabled`** (or the unit stopped) until the new code is back.
+   An older queue must never be driven by a consumer in `real`.
+2. Keep every durable state: `<state_dir>/<account>/journal.jsonl`, `exports/`, `prepared.sqlite`, the executor's
+   `attempts.json` (+ `.executor.lock` is harmless), the tasks file. Do not delete or "clean" them.
+3. Before the rollback list what is unresolved: `python -m onewin_automation.consumer status --policy <policy>`
+   and, in the tasks file, the history entries with `status: unresolved`. These are the open exposures; the
+   journal and the executor's attempt store hold the truth even if the older queue code later ages the history
+   entry out.
+4. After coming back to the new code the consumer's start re-asserts every unresolved exposure from its journal
+   into the queue (idempotent per attempt key) and asks the executor again (fence / attempt) before any new order.
+5. The executor side is additive: an executor without the fence route answers 404 and the consumer then keeps
+   the outcome `unresolved`.

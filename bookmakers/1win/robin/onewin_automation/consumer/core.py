@@ -54,6 +54,9 @@ class Hooks:
         return None
 
 
+_DELIVERY_GRACE_S = 8.0   # how long a hand-off that was not answered is given to show up before it is fenced
+
+
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -129,6 +132,7 @@ class Consumer:
         self.journal: Journal | None = None
         self.prepared: DurableDryRunStore | None = None
         self.instance_lock: InstanceLock | None = None
+        self._store_id: str | None = None   # identity of the executor's attempt store the orders are handed to
 
     # ------------------------------------------------------------------ lifecycle
     @property
@@ -168,6 +172,7 @@ class Consumer:
                 problems.append("executor_store_not_durable")
         if problems:
             raise PreflightError(problems, health)
+        self._store_id = (health.get("store") or {}).get("path_sha256")
         return health
 
     # ------------------------------------------------------------------ evaluation (read-only)
@@ -345,10 +350,20 @@ class Consumer:
 
         envelope = self._envelope(built, item)
         # intent first: after a crash between this record and the answer, the executor is asked, never the item re-sent
-        self.journal.append({"phase": "handed_off", "key": key, "mode": p.mode, "executor": p.executor.url})
+        self.journal.append({"phase": "handed_off", "key": key, "mode": p.mode, "executor": p.executor.url,
+                             "executor_store": self._store_id})
         self.hooks.at("after_handoff_recorded", key=key)
         if p.mode == "dry":
             return self._dry(key, item, envelope, report, built)
+        # From here a lost lease proves nothing: the queue is told, so that the slot is freed with an
+        # `unresolved` entry (exposure kept) and never with a cancellation.
+        try:
+            marked = self.queue.request("mark_handoff", task_id=task_id, token=token, attempt_key=key)
+        except QueueError:
+            marked = {"marked": False, "reason": "queue_unavailable"}
+        if not marked.get("marked"):
+            decision = Decision("not_sent", [f"handoff_not_marked_in_queue:{marked.get('reason')}"], "queue")
+            return self._settle(key, item, decision, attempt=None, report=report, built=built)
         return self._real(key, item, envelope, report, built, token)
 
     def _dry(self, key: str, item: dict[str, Any], envelope: dict[str, Any], report: dict[str, Any], built: Built) -> dict[str, Any]:
@@ -388,19 +403,43 @@ class Consumer:
         # re-sent; "never heard of it" is not proof while the request can be late.)
         self.hooks.at("after_submit_returned", key=key)
         try:
-            attempt_view = self._await_attempt(key, item, token, delivery_unknown=delivery_unknown)
+            attempt_view = self._await_attempt(key, item, token, delivery_unknown=delivery_unknown,
+                                               unknown_reason="order_delivery_unknown_after_lost_answer", store=self._store_id)
         except Exception:  # noqa: BLE001 - after the hand-off nothing is assumed: the outcome stays unresolved
             attempt_view = {"unreachable": True}
         return self._finish_attempt(key, item, attempt_view, report, built=built)
 
     # ------------------------------------------------------------------ following the attempt
-    def _await_attempt(self, key: str, item: dict[str, Any], token: str | None, *, delivery_unknown: bool = False) -> dict[str, Any]:
+    def _fence(self, key: str, reason: str, *, store: str | None) -> tuple[str, dict[str, Any]]:
+        """Ask the owner of the executor's attempt store to refuse ``key`` for good.  The only way a hand-off
+        that was not answered is ever called "not sent": 'fenced' (no attempt existed, none can now), 'attempt'
+        (one exists: follow it) or 'unknown' (nothing was acknowledged; the order may still arrive)."""
+        try:
+            out = self.executor.fence(key, reason)
+        except (ExecutorUnavailable, ExecutorRefused) as exc:
+            return "unknown", {"reason": f"fence_not_acknowledged:{type(exc).__name__}:{getattr(exc, 'code', '')}"}
+        answered = (out.get("store") or {}).get("path_sha256")
+        if store and answered != store:
+            # an acknowledgement of another store says nothing about the one the order was handed to
+            return "unknown", {"reason": "executor_store_is_not_the_one_the_order_was_handed_to"}
+        if (out.get("fence") or {}).get("fenced") is True:
+            return "fenced", out
+        if out.get("attempt"):
+            return "attempt", out
+        return "unknown", {"reason": "fence_answer_not_understood"}
+
+    def _await_attempt(self, key: str, item: dict[str, Any], token: str | None, *, delivery_unknown: bool = False,
+                       unknown_reason: str = "order_delivery_unknown", store: str | None = None) -> dict[str, Any]:
         """Poll the executor until the attempt is terminal.  Renews the lease; passes a cancel on as a
-        withdrawal request; at the deadline it stops waiting and the outcome stays unresolved."""
+        withdrawal request; at the deadline it stops waiting and the outcome stays unresolved.
+
+        "Nothing there" is never a result by itself: the request may still be on its way (tunnel, queue).  The
+        absence is only turned into "not sent" by the executor's fence (a durable refusal of the key)."""
         p = self.policy
         deadline = time.monotonic() + p.executor_deadline_s
-        # a lost submit answer: wait this long for the order to show up before it is called undelivered
-        grace_until = time.monotonic() + min(8.0, p.executor_deadline_s) if delivery_unknown else 0.0
+        # a lost submit answer: wait this long for the order to show up before the fence is asked for
+        grace_until = time.monotonic() + min(_DELIVERY_GRACE_S, p.executor_deadline_s / 2.0) if delivery_unknown else 0.0
+        fence_rounds = 0
         next_renew = time.monotonic() + p.lease_ms / 3000.0
         withdrawn = False
         unreachable = 0
@@ -417,17 +456,24 @@ class Consumer:
                 return view
             if not attempt and not view.get("unreachable") and not view.get("in_flight"):
                 last = view.get("last_run")
-                if last and last.get("finished_at"):
-                    return view  # the executor refused before any claim: no attempt exists and none will
-                if not last:
-                    if time.monotonic() >= grace_until:
-                        # reachable, nothing in flight, never heard of this key: the order never arrived
-                        # (for a consumer that is gone and restarted, a request is never half-delivered)
-                        if delivery_unknown:
-                            view["delivery_unknown"] = True
-                        else:
-                            view["never_received"] = True
+                if (last and last.get("finished_at")) or not last:
+                    if not last and time.monotonic() < grace_until:
+                        pass  # a lost answer: the order is given time to show up before the fence is asked for
+                    elif fence_rounds >= 3:
+                        view["delivery_unknown"] = True
+                        view["unknown_reason"] = f"{unknown_reason}:fence_and_lookup_disagree"
                         return view
+                    else:
+                        fence_rounds += 1
+                        verdict, detail = self._fence(key, "consumer_order_not_acknowledged", store=store)
+                        if verdict == "fenced":
+                            view["fenced_not_sent"] = True
+                            return view
+                        if verdict == "unknown":
+                            view["delivery_unknown"] = True
+                            view["unknown_reason"] = f"{unknown_reason}:{detail.get('reason')}"
+                            return view
+                        continue  # an attempt exists after all: the next lookup follows it
             now = time.monotonic()
             if attempt and not view.get("in_flight") and not view.get("unreachable") and attempt.get("status") in _OPEN:
                 # an open attempt nobody is driving: the executor settles it (WITHDRAWN / INDETERMINATE), never re-sends
@@ -464,14 +510,15 @@ class Consumer:
         attempt = view.get("attempt")
         if not attempt:
             last = view.get("last_run") or {}
-            if view.get("never_received"):
-                return Decision("not_sent", ["executor_never_received_the_order"], "executor")
+            if view.get("fenced_not_sent"):
+                # acknowledged by the executor's store: the key can never be claimed, so nothing was or will be sent
+                if last.get("finished_at"):
+                    return Decision("not_sent", [f"executor_refused_before_claim:{last.get('thrown') or 'unknown'}", "fenced"], "executor")
+                return Decision("not_sent", ["executor_fenced_order_before_claim"], "executor")
             if view.get("delivery_unknown"):
-                return Decision("unresolved", ["order_delivery_unknown_after_lost_answer"], "executor")
-            if view.get("unreachable") or view.get("deadline_exceeded") or not last:
-                # nothing is known: the executor may hold an attempt we cannot see
-                return Decision("unresolved", ["executor_unreachable_attempt_unknown"], "executor")
-            return Decision("not_sent", [f"executor_refused_before_claim:{last.get('thrown') or 'unknown'}"], "executor")
+                return Decision("unresolved", [view.get("unknown_reason") or "order_delivery_unknown"], "executor")
+            # unreachable / deadline: nothing is known, the executor may hold an attempt we cannot see
+            return Decision("unresolved", ["executor_unreachable_attempt_unknown"], "executor")
         status = attempt.get("status")
         stake = attempt.get("stake")
         if status == "ACCEPTED":
@@ -518,6 +565,13 @@ class Consumer:
     def _write_queue(self, key: str, item: dict[str, Any], decision: Decision, attempt: dict[str, Any] | None) -> dict[str, Any]:
         assert self.journal is not None
         provenance = self._attempt_provenance(attempt)
+        if not attempt:
+            # No attempt is known.  Whether the record is a test entry is a fact of the EVIDENCE the order was
+            # built from (journalled at "built"), not of the absence: an order of real evidence whose delivery is
+            # unknown is exposure.  An item refused before it was built (no "built" record) never was an order.
+            built = ((self.journal.items().get(key) or {}).get("phases") or {}).get("built")
+            if built is not None and built.get("synthetic") is False:
+                provenance = {"synthetic": False, "environment": self.policy.environment}
         outcome: dict[str, Any] = {
             "status": decision.status, "attemptKey": key, "reason": "; ".join(decision.reasons)[:300] or None,
             "stake": decision.stake if decision.stake is not None else self.policy.stake,
@@ -587,9 +641,12 @@ class Consumer:
         if phase in ("queue_written", "exported", "decided") and decided:
             decision = Decision.from_record(decided)
             attempt = self._attempt_or_none(key)
-            if phase == "decided" or self._still_queued(snapshot):
+            if phase == "decided" or self._still_queued(snapshot) or (
+                    decision.status == "unresolved" and not (entry["phases"].get("exported") or {}).get("late_resolution")):
                 # the decision was taken but the queue still holds the task (crash before the write, or a
-                # re-delivered copy): record again, the record is idempotent per attempt key
+                # re-delivered copy): record again, the record is idempotent per attempt key.  An unresolved
+                # exposure is re-asserted from the journal every time: a queue file that lost it (restored
+                # copy, an older TasksManager that aged it out) gets it back, an existing record is untouched.
                 self._write_queue(key, snapshot, decision, attempt)
             if phase != "exported":
                 self._export(key, snapshot, attempt, decision)
@@ -606,8 +663,11 @@ class Consumer:
             decision = Decision("not_sent", ["dry_run_interrupted_by_restart"], "recovery")
             return self._settle(key, snapshot, decision, attempt=None, report=report)
         # real: ask the executor what happened to the order, even when the hand-off was never journalled
-        view = self._await_attempt_after_restart(key, snapshot)
-        if not view.get("attempt") and not handed and not (view.get("last_run") or {}):
+        store = (entry["phases"].get("handed_off") or {}).get("executor_store")
+        view = self._await_attempt_after_restart(key, snapshot, handed=handed, store=store)
+        if view.get("not_handed_off"):
+            # the hand-off is journalled BEFORE the request is made: no such record is this consumer's own
+            # proof that it never asked the executor for anything
             decision = Decision("not_sent", ["consumer_stopped_before_order_was_handed_off"], "recovery")
             return self._settle(key, snapshot, decision, attempt=None, report=report)
         return self._finish_attempt(key, snapshot, view, report)
@@ -623,12 +683,29 @@ class Consumer:
         """The consumer gave up waiting (deadline / executor unreachable) and left the entry ``unresolved``;
         the attempt has since reached a terminal state of its own: the entry is resolved by it."""
         assert self.journal is not None
-        if decision.status != "unresolved" or not attempt or attempt.get("status") not in _TERMINAL:
-            return None
-        if attempt["status"] == "INDETERMINATE":
+        if decision.status != "unresolved":
             return None
         exported = entry["phases"].get("exported") or {}
         if exported.get("late_resolution"):
+            return None
+        if not attempt and (entry["phases"].get("observed") or {}).get("attempt_status") is None \
+                and "handed_off" in entry["phases"] and self.policy.mode == "real":
+            # no attempt was ever seen: only the executor's fence can say that the order will never arrive
+            store = (entry["phases"].get("handed_off") or {}).get("executor_store")
+            verdict, detail = self._fence(key, "consumer_recovery_unresolved_without_attempt", store=store)
+            if verdict == "fenced":
+                resolution = {"resolution": "not_placed", "operator": "consumer",
+                              "evidence": "executor fenced the key: no attempt existed and none can be claimed any more"}
+                resolved = self.queue.request("resolve_outcome", attempt_key=key, resolution=resolution)
+                self.journal.append({"phase": "exported", "key": key, "late_resolution": "not_placed", "fenced": True,
+                                     "attempt_status": None, "path": None, "sha256": None})
+                return {"resolution": "not_placed", "fenced": True, "queue": bool(resolved.get("resolved") or resolved.get("already"))}
+            if verdict != "attempt":
+                return None
+            attempt = detail.get("attempt")
+        if not attempt or attempt.get("status") not in _TERMINAL:
+            return None
+        if attempt["status"] == "INDETERMINATE":
             return None
         if attempt["status"] == "ACCEPTED":
             receipt = attempt.get("receipt") or {}
@@ -653,9 +730,21 @@ class Consumer:
         except (ExecutorUnavailable, ExecutorRefused):
             return None
 
-    def _await_attempt_after_restart(self, key: str, snapshot: dict[str, Any]) -> dict[str, Any]:
-        view = self._await_attempt(key, snapshot, token=None)
-        return view
+    def _await_attempt_after_restart(self, key: str, snapshot: dict[str, Any], *, handed: bool = True,
+                                     store: str | None = None) -> dict[str, Any]:
+        """After a restart.  Without a journalled hand-off nothing can have been sent by this consumer.  With
+        one, the request may still be on its way: the executor is asked, and when it knows nothing the key is
+        fenced; an unacknowledged fence leaves the outcome unresolved (never "not sent")."""
+        if not handed:
+            try:
+                view = self.executor.attempt(key)
+            except (ExecutorUnavailable, ExecutorRefused):
+                view = {}
+            if not view.get("attempt") and not view.get("in_flight"):
+                return {"not_handed_off": True}
+            return self._await_attempt(key, snapshot, token=None, store=None)
+        return self._await_attempt(key, snapshot, token=None, delivery_unknown=True,
+                                   unknown_reason="order_delivery_unknown_after_restart", store=store)
 
     def recover(self) -> list[dict[str, Any]]:
         """Finish every item the journal shows as unfinished (at start, before new work)."""

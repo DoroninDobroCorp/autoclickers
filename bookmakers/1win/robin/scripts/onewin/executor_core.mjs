@@ -224,7 +224,19 @@ export class ExecutorCore {
   attempt(key) {
     const entry = this.store.getAttempt(key);
     const run = this.lastRuns.get(key) || null;
-    return { attempt: entry, in_flight: this.inFlight.has(key), last_run: run, executor: this.provenance() };
+    // `fenced` is the durable tombstone (a key that can never be claimed): the answer to "may it still arrive?"
+    return { attempt: entry, in_flight: this.inFlight.has(key), last_run: run, fenced: entry ? null : this.store.getTombstone(key),
+      executor: this.provenance() };
+  }
+
+  /**
+   * Refuse the key for good when no attempt exists for it (see DurableAttemptStore.fenceUnclaimed). The
+   * answer carries the identity of the store that acknowledged it, so that a fence given by a store other
+   * than the one the order was handed to is recognised by the caller.
+   */
+  async fence(key, reason = 'consumer_fence') {
+    const out = await this.store.fenceUnclaimed(String(key), String(reason).slice(0, 200));
+    return { fence: out, key: String(key), store: { path_sha256: sha256(this.storePath).slice(0, 16) }, ...this.attempt(key) };
   }
 
   listAttempts(filter = {}) {
@@ -318,6 +330,9 @@ export class ExecutorCore {
     const key = plan.idempotency_key.trim();
     const known = this.store.getAttempt(key);
     if (known || this.inFlight.has(key)) return { accepted: false, duplicate: true, key, ...this.attempt(key) };
+    // a fenced key is refused for good (the consumer that handed it over was told it was not sent)
+    const fenced = this.store.getTombstone(key);
+    if (fenced) throw new ExecutorError('ORDER_FENCED', 'this key was fenced before it was claimed; it is never executed', 409, { fenced });
     if (this.inFlight.size > 0) throw new ExecutorError('EXECUTOR_BUSY', 'another order is in flight', 409);
     const run = this._planForRun(plan, envelope);
     const entry = { started_at: Date.now(), key };

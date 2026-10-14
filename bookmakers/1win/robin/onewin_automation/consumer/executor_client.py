@@ -81,6 +81,11 @@ class ExecutorClient:
     def withdraw(self, key: str, reason: str) -> dict[str, Any]:
         return self._call("POST", f"/v1/attempts/{urllib.parse.quote(key, safe='')}/withdraw", {"reason": reason})
 
+    def fence(self, key: str, reason: str) -> dict[str, Any]:
+        """Ask the owner of the attempt store to refuse ``key`` for good when it has no attempt (a not-sent
+        acknowledgement); when an attempt exists the answer carries it and nothing is changed."""
+        return self._call("POST", f"/v1/attempts/{urllib.parse.quote(key, safe='')}/fence", {"reason": reason})
+
     def recover(self) -> dict[str, Any]:
         return self._call("POST", "/v1/recover", {})
 

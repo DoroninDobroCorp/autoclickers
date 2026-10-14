@@ -80,44 +80,69 @@ class Journal:
         return entry
 
     def records(self) -> list[dict[str, Any]]:
-        out: list[dict[str, Any]] = []
-        raw = self.path.read_bytes()
-        lines = raw.split(b"\n")
-        if lines and lines[-1] == b"":
-            lines.pop()
-        elif lines:
-            lines.pop()  # a torn tail
-        for number, line in enumerate(lines, 1):
-            if not line.strip():
-                continue
-            try:
-                out.append(json.loads(line))
-            except ValueError as exc:
-                raise JournalError(f"journal line {number} is corrupt") from exc
-        return out
+        return read_records(self.path)
 
     def items(self) -> dict[str, dict[str, Any]]:
         """key -> {phase records by name, snapshot, last phase}"""
-        state: dict[str, dict[str, Any]] = {}
-        for record in self.records():
-            key = record.get("key")
-            if not isinstance(key, str):
-                continue
-            item = state.setdefault(key, {"key": key, "phases": {}, "order": []})
-            phase = record.get("phase")
-            if phase in PHASES:
-                item["phases"][phase] = record
-                item["order"].append(phase)
-        for item in state.values():
-            item["last"] = max((PHASES.index(p) for p in item["phases"]), default=-1)
-            item["phase"] = PHASES[item["last"]] if item["last"] >= 0 else None
-        return state
+        return group_items(self.records())
 
     def close(self) -> None:
         try:
             os.close(self._fd)
         except OSError:
             pass
+
+
+def read_records(path: str | Path) -> list[dict[str, Any]]:
+    """The records of a journal file WITHOUT opening it for writing (a torn tail is ignored, a corrupt line is an error)."""
+    out: list[dict[str, Any]] = []
+    raw = Path(path).read_bytes()
+    lines = raw.split(b"\n")
+    if lines and lines[-1] == b"":
+        lines.pop()
+    elif lines:
+        lines.pop()  # a torn tail
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            out.append(json.loads(line))
+        except ValueError as exc:
+            raise JournalError(f"journal line {number} is corrupt") from exc
+    return out
+
+
+def group_items(records: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    state: dict[str, dict[str, Any]] = {}
+    for record in records:
+        key = record.get("key")
+        if not isinstance(key, str):
+            continue
+        item = state.setdefault(key, {"key": key, "phases": {}, "order": []})
+        phase = record.get("phase")
+        if phase in PHASES:
+            item["phases"][phase] = record
+            item["order"].append(phase)
+    for item in state.values():
+        item["last"] = max((PHASES.index(p) for p in item["phases"]), default=-1)
+        item["phase"] = PHASES[item["last"]] if item["last"] >= 0 else None
+    return state
+
+
+def open_exposures(items: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """What the journal still owes: items that are not exported, and items whose decision is ``unresolved`` and
+    that nothing resolved afterwards.  Read-only; this is the list an operator needs before a rollback."""
+    out = []
+    for key, item in items.items():
+        decided = ((item["phases"].get("decided") or {}).get("decision") or {})
+        exported = item["phases"].get("exported") or {}
+        unfinished_item = item["phase"] != "exported"
+        unresolved = decided.get("status") == "unresolved" and not exported.get("late_resolution")
+        if unfinished_item or unresolved:
+            out.append({"key": key, "task_id": (item["phases"].get("claimed") or {}).get("task_id"), "phase": item["phase"],
+                        "handed_off": "handed_off" in item["phases"], "decision": decided.get("status"),
+                        "reasons": decided.get("reasons")})
+    return out
 
 
 def unfinished(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

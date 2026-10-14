@@ -17,8 +17,9 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from consumer_harness import (HERE, MARKER, REPLAY_NOW, TOKEN, Producer, Stand, case, configure_stand, drive, finish_consumer,
-                              leftover_browsers, live_case, replay_offset, reports, run_consumer, start_consumer, write_policy)
+from consumer_harness import (HERE, MARKER, REPLAY_NOW, TOKEN, HoldingProxy, Producer, Stand, case, configure_stand, drive,
+                              finish_consumer, leftover_browsers, live_case, replay_offset, reports, run_consumer, start_consumer,
+                              write_policy)
 from onewin_automation.common import instant
 from onewin_automation.consumer.journal import Journal
 from onewin_automation.queue_adapter import queue_item_identity
@@ -709,6 +710,186 @@ class CrashAndRestart(ConsumerBase):
     def test_consumer_dies_after_the_queue_was_written_before_the_export(self):
         stand, key, report = self._crash_after_answer("after_queue_written")
         self.assertEqual(report["resumed_from"], "queue_written")
+
+
+class DelayedDeliveryAcrossRestart(ConsumerBase):
+    """Review P1: a hand-off that was journalled while its request is still on its way (a tunnel, a queue).
+    The consumer dies; after the restart the executor "has not heard of" the key, and that is NOT a proof that
+    the request cannot arrive later.  The network between the consumer and the executor is a test double
+    (HoldingProxy, synthetic); queue, consumer, executor and attempt store are the product."""
+
+    def setUp(self):
+        super().setUp()
+        self.proxies: list[HoldingProxy] = []
+
+    def tearDown(self):
+        for proxy in self.proxies:
+            proxy.close()
+        super().tearDown()
+
+    def setup_route(self, *, hold=True, **proxy_kw):
+        stand = self.stand("real")
+        proxy = HoldingProxy(stand.url)
+        proxy.hold_orders = hold
+        for name, value in proxy_kw.items():
+            setattr(proxy, name, value)
+        self.proxies.append(proxy)
+        item = self.prod.add()
+        key = queue_item_identity(item)
+        policy = write_policy(self.tmp, mode="real", stand_url=proxy.url, tasks_file=self.prod.tasks_file, state_dir=self.tmp / "state",
+                              executor={"url": proxy.url, "token_env": "ONEWIN_EXECUTOR_TOKEN", "timeout_s": 3},
+                              lease_ms=1500, executor_deadline_s=12)
+        return stand, proxy, item, key, policy
+
+    def kill_with_the_order_on_its_way(self, proxy, stand, item, key, policy):
+        proc = start_consumer(policy, "--max-items", "1", "--test-clock-offset", repr(self.offset))
+        try:
+            self.assertTrue(proxy.wait_held(1, 90), "the consumer never handed the order over")
+        finally:
+            proc.kill()
+            proc.communicate(timeout=30)
+        self.assertEqual(self.journal_phases(key), ["claimed", "built", "handed_off"])
+        self.assertEqual((proxy.orders_arrived, proxy.orders_delivered), (1, 0))
+        self.assertEqual(stand.money, 0)
+        self.assertIsNone(self.attempt(stand, key)["attempt"], "the executor has not heard of it yet")
+        # the queue knows that the order may be on its way
+        self.assertEqual(self.prod.state(item["id"])["claim"]["handedOff"]["attemptKey"], key)
+
+    def entries(self, key):
+        return [h for h in self.history() if h.get("executionOutcome", {}).get("attemptKey") == key]
+
+    def wait_for(self, predicate, timeout=60.0, what="condition"):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if predicate():
+                return
+            time.sleep(0.2)
+        self.fail(f"timed out waiting for {what}")
+
+    def test_restart_fences_the_key_and_the_late_request_is_refused_never_executed(self):
+        stand, proxy, item, key, policy = self.setup_route()
+        self.kill_with_the_order_on_its_way(proxy, stand, item, key, policy)
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        self.assertEqual(rc, 0, lines)
+        resumed = [r for r in reps if r.get("resumed_from")]
+        self.assertEqual((resumed[0]["decision"], resumed[0]["reasons"]), ("not_sent", ["executor_fenced_order_before_claim"]), reps)
+        self.assertGreaterEqual(proxy.fence_calls, 1)
+        self.assertEqual([e["status"] for e in self.entries(key)], ["cancelled"])
+        # the request that was on its way arrives now: it is refused for good, the executor never starts it
+        proxy.release()
+        self.wait_for(lambda: proxy.orders_delivered == 1, 30, "the late delivery")
+        view = self.attempt(stand, key)
+        self.assertIsNone(view["attempt"])
+        self.assertIsNone(view["last_run"], "the executor never started a run for the fenced key")
+        self.assertEqual(view["in_flight"], False)
+        self.assertEqual(view["fenced"]["reason"], "consumer_order_not_acknowledged")
+        self.assertEqual(stand.money, 0)
+        # and nothing changes when the consumer runs again
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        self.assertEqual([e["status"] for e in self.entries(key)], ["cancelled"])
+        self.assertEqual((proxy.orders_arrived, stand.money), (1, 0), "no second POST, no money")
+
+    def test_unacknowledged_fence_keeps_the_exposure_and_the_late_receipt_of_that_attempt_resolves_it_once(self):
+        stand, proxy, item, key, policy = self.setup_route(fence="drop")
+        self.kill_with_the_order_on_its_way(proxy, stand, item, key, policy)
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        resumed = [r for r in reps if r.get("resumed_from")]
+        self.assertEqual(resumed[0]["decision"], "unresolved", reps)
+        self.assertTrue(resumed[0]["reasons"][0].startswith("order_delivery_unknown_after_restart:fence_not_acknowledged"), resumed[0])
+        self.assertEqual([e["status"] for e in self.entries(key)], ["unresolved"])
+        self.assertEqual(self.prod.current()["processing"], False, "the slot is free, the exposure is recorded")
+        # a second restart with the same knowledge: still unresolved, still no second request
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        self.assertEqual([e["status"] for e in self.entries(key)], ["unresolved"])
+        self.assertEqual((proxy.orders_arrived, stand.money), (1, 0))
+        # the request arrives and is executed by the executor
+        proxy.release()
+        self.wait_for(lambda: (self.attempt(stand, key)["attempt"] or {}).get("status") == "ACCEPTED", 90, "the executor to accept")
+        self.assertEqual(stand.money, 1)
+        receipt = self.attempt(stand, key)["attempt"]["receipt"]
+        # the consumer finds the late ACCEPTED receipt of that exact attempt on its next start
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        late = [r for r in reps if r.get("late_resolution")]
+        self.assertEqual(late[0]["late_resolution"]["resolution"], "accepted", reps)
+        entries = self.entries(key)
+        self.assertEqual([e["status"] for e in entries], ["completed"], "one entry, updated in place")
+        self.assertEqual(entries[0]["ticketId"], str(receipt.get("bet_id") or receipt.get("receipt_id")))
+        export = self.account_dir() / "exports" / f"{key}.json"
+        digest = export.read_bytes()
+        # idempotent: another start changes neither the queue nor the export, and sends nothing
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        self.assertEqual([e["status"] for e in self.entries(key)], ["completed"])
+        self.assertEqual(export.read_bytes(), digest)
+        self.assertEqual((proxy.orders_arrived, stand.money), (1, 1), "exactly one request, one bet")
+
+    def test_request_that_arrives_while_the_restarted_consumer_waits_is_followed_to_the_receipt(self):
+        stand, proxy, item, key, policy = self.setup_route()
+        self.kill_with_the_order_on_its_way(proxy, stand, item, key, policy)
+        policy = write_policy(self.tmp, mode="real", stand_url=proxy.url, tasks_file=self.prod.tasks_file, state_dir=self.tmp / "state",
+                              executor={"url": proxy.url, "token_env": "ONEWIN_EXECUTOR_TOKEN", "timeout_s": 3},
+                              lease_ms=20000, executor_deadline_s=40, consumer_id="consumer-acct-1")
+        proc = start_consumer(policy, "--max-items", "1", "--idle-exit-s", "0.5", "--test-clock-offset", repr(self.offset))
+        self.wait_for(lambda: any(m == "GET" and key in p for m, p in proxy.log), 30, "the restarted consumer to look the key up")
+        time.sleep(1.0)       # it is inside its waiting window: nothing is there yet
+        self.assertEqual(proxy.fence_calls, 0, "the fence is not asked for while the request may still be arriving")
+        proxy.release()
+        rc, lines = finish_consumer(proc, timeout=120)
+        self.assertEqual(rc, 0, lines)
+        resumed = [r for r in reports(lines) if r.get("resumed_from")]
+        self.assertEqual(resumed[0]["decision"], "accepted", lines)
+        self.assertEqual((proxy.orders_arrived, stand.money), (1, 1))
+        self.assertEqual([e["status"] for e in self.entries(key)], ["completed"])
+
+    def test_status_lists_the_open_exposures_from_the_journal_without_touching_anything(self):
+        stand, proxy, item, key, policy = self.setup_route(fence="drop")
+        self.kill_with_the_order_on_its_way(proxy, stand, item, key, policy)
+        journal = self.account_dir() / "journal.jsonl"
+        before = journal.read_bytes()
+        rc, lines = run_consumer(policy, command="status")
+        self.assertEqual(rc, 0, lines)
+        status = [l for l in lines if l.get("event") == "status"][0]
+        self.assertEqual([(o["key"], o["phase"], o["handed_off"]) for o in status["open_items"]], [(key, "handed_off", True)])
+        self.assertEqual(journal.read_bytes(), before, "status only reads")
+        self.assertEqual(proxy.fence_calls, 0, "status never asks the executor")
+
+    def test_lost_answer_of_an_order_that_was_delivered_is_followed_and_sent_once(self):
+        stand, proxy, item, key, policy = self.setup_route(hold=False, drop_response_orders=True)
+        rc, lines, reps = self.run_once(policy)
+        self.assertEqual(reps[0]["decision"], "accepted", reps)
+        self.assertEqual((proxy.orders_arrived, proxy.orders_delivered, stand.money), (1, 1, 1))
+        self.assertEqual([e["status"] for e in self.entries(key)], ["completed"])
+
+    def test_lost_request_without_restart_is_fenced_and_a_late_copy_is_refused(self):
+        stand, proxy, item, key, policy = self.setup_route()
+        rc, lines, reps = self.run_once(policy)
+        self.assertEqual(reps[0]["decision"], "not_sent", reps)
+        self.assertEqual(reps[0]["reasons"], ["executor_fenced_order_before_claim"])
+        proxy.release()
+        self.wait_for(lambda: proxy.orders_delivered == 1, 30, "the late delivery")
+        self.assertIsNone(self.attempt(stand, key)["attempt"])
+        self.assertEqual((stand.money, proxy.orders_arrived), (0, 1))
+
+    def test_lost_request_with_the_fence_unreachable_is_unresolved_not_not_sent(self):
+        stand, proxy, item, key, policy = self.setup_route(fence="missing")     # an executor that has no fence route
+        rc, lines, reps = self.run_once(policy)
+        self.assertEqual(reps[0]["decision"], "unresolved", reps)
+        self.assertTrue(reps[0]["reasons"][0].startswith("order_delivery_unknown_after_lost_answer:fence_not_acknowledged"), reps[0])
+        self.assertEqual([e["status"] for e in self.entries(key)], ["unresolved"])
+
+    def test_a_lease_that_expires_after_the_handoff_frees_the_slot_with_an_unresolved_entry_which_the_recovery_settles(self):
+        stand, proxy, item, key, policy = self.setup_route()
+        self.kill_with_the_order_on_its_way(proxy, stand, item, key, policy)
+        time.sleep(2.0)                                     # the lease (1.5 s) is gone
+        other = self.prod.add(case("FTS Away"))             # a producer adds: the slot is taken over
+        placeholder = self.entries(key)
+        self.assertEqual([(e["status"], e["step"]) for e in placeholder], [("unresolved", "handoff_lease_expired")])
+        self.assertFalse(placeholder[0]["testMode"], "possible exposure is counted until it is settled")
+        self.prod.queue.request("cancel", task_id=other["id"], force_current=True)
+        rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
+        entries = self.entries(key)
+        self.assertEqual([e["status"] for e in entries], ["cancelled"], "the placeholder is replaced, not duplicated")
+        self.assertEqual(entries[0]["executionOutcome"]["replacedPlaceholder"]["kind"], "lease_expired_after_handoff")
+        self.assertEqual(stand.money, 0)
 
 
 class JevIsAnAdviser(ConsumerBase):

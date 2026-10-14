@@ -176,29 +176,143 @@ class LostAnswerTest(unittest.TestCase):
         consumer.open()
         return consumer
 
-    def test_lost_submit_answer_with_nothing_found_is_unresolved(self):
-        from onewin_automation.consumer.core import Decision
-        from onewin_automation.consumer.executor_client import ExecutorUnavailable
+    @staticmethod
+    def _executor(*, fence=None, store="aaaa", attempts=None):
+        """A reachable executor that knows nothing of the key.  ``fence``: a callable (key, reason) -> answer
+        or an exception class to raise; None = the route is missing (an older executor: 404)."""
+        from onewin_automation.consumer.executor_client import ExecutorRefused
 
         class Executor:
+            fences = []
+
             def submit(self, envelope):
+                from onewin_automation.consumer.executor_client import ExecutorUnavailable
                 raise ExecutorUnavailable("timed out")
 
             def attempt(self, key):
-                return {"attempt": None, "in_flight": False, "last_run": None}
+                if attempts:
+                    return next(attempts)
+                return {"attempt": None, "in_flight": False, "last_run": None, "fenced": None}
 
             def recover(self):
                 return {}
 
+            def fence(self, key, reason):
+                Executor.fences.append((key, reason))
+                if fence is None:
+                    raise ExecutorRefused(404, "NOT_FOUND", "unknown route")
+                return fence(key, reason)
+
+        Executor.fences = []
+        return Executor()
+
+    @staticmethod
+    def _fenced_answer(store="aaaa"):
+        return lambda key, reason: {"fence": {"fenced": True, "tombstone": {"at": 1, "reason": reason}}, "key": key,
+                                    "store": {"path_sha256": store}, "attempt": None, "in_flight": False, "last_run": None}
+
+    def test_lost_submit_answer_with_nothing_found_is_unresolved(self):
+        """Nothing found is not proof: without the executor's fence acknowledgement the order may still arrive."""
         with tempfile.TemporaryDirectory() as d:
-            consumer = self._consumer(Executor(), d)
+            consumer = self._consumer(self._executor(fence=None), d)
             try:
-                view = consumer._await_attempt("k", {"id": 1.5}, None, delivery_unknown=True)
+                view = consumer._await_attempt("k", {"id": 1.5}, None, delivery_unknown=True,
+                                               unknown_reason="order_delivery_unknown_after_lost_answer")
                 self.assertTrue(view.get("delivery_unknown"))
-                self.assertEqual(consumer._decision_from_attempt("k", view).status, "unresolved")
-                # the same view of a consumer that RESTARTED (its request cannot be half-delivered) is "never received"
-                view = consumer._await_attempt("k", {"id": 1.5}, None)
-                self.assertEqual(consumer._decision_from_attempt("k", view).status, "not_sent")
+                decision = consumer._decision_from_attempt("k", view)
+                self.assertEqual(decision.status, "unresolved")
+                self.assertIn("fence_not_acknowledged", decision.reasons[0])
+            finally:
+                consumer.close()
+
+    def test_restart_after_a_journalled_handoff_never_calls_a_missing_attempt_not_sent_without_the_fence(self):
+        """The case of the coordinator's probe: a reachable executor with attempt=null, in_flight=false, no run."""
+        with tempfile.TemporaryDirectory() as d:
+            consumer = self._consumer(self._executor(fence=None), d)
+            try:
+                view = consumer._await_attempt_after_restart("prior-handoff", {"id": 1.5}, handed=True)
+                decision = consumer._decision_from_attempt("prior-handoff", view)
+                self.assertEqual(decision.status, "unresolved")
+                self.assertFalse(view.get("fenced_not_sent"))
+                self.assertIn("order_delivery_unknown_after_restart", decision.reasons[0])
+            finally:
+                consumer.close()
+
+    def test_restart_with_the_fence_acknowledged_is_not_sent_and_the_key_is_refused_for_good(self):
+        with tempfile.TemporaryDirectory() as d:
+            executor = self._executor(fence=self._fenced_answer("aaaa"))
+            consumer = self._consumer(executor, d)
+            try:
+                view = consumer._await_attempt_after_restart("prior-handoff", {"id": 1.5}, handed=True, store="aaaa")
+                decision = consumer._decision_from_attempt("prior-handoff", view)
+                self.assertEqual((decision.status, decision.reasons), ("not_sent", ["executor_fenced_order_before_claim"]))
+                self.assertEqual([k for k, _ in executor.fences], ["prior-handoff"])
+            finally:
+                consumer.close()
+
+    def test_a_fence_given_by_another_store_is_not_an_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as d:
+            consumer = self._consumer(self._executor(fence=self._fenced_answer("bbbb")), d)
+            try:
+                view = consumer._await_attempt_after_restart("prior-handoff", {"id": 1.5}, handed=True, store="aaaa")
+                decision = consumer._decision_from_attempt("prior-handoff", view)
+                self.assertEqual(decision.status, "unresolved")
+                self.assertIn("executor_store_is_not_the_one_the_order_was_handed_to", decision.reasons[0])
+            finally:
+                consumer.close()
+
+    def test_when_the_fence_finds_an_attempt_that_attempt_is_followed(self):
+        answers = iter([{"attempt": None, "in_flight": False, "last_run": None},
+                        {"attempt": {"status": "ACCEPTED", "stake": 1.0, "receipt": {"bet_id": "B-9", "accepted_cf": 1.8}},
+                         "in_flight": False}])
+        fence = lambda key, reason: {"fence": {"fenced": False, "status": "ACCEPTED"}, "store": {"path_sha256": "aaaa"},   # noqa: E731
+                                     "attempt": {"status": "ACCEPTED"}}
+        with tempfile.TemporaryDirectory() as d:
+            consumer = self._consumer(self._executor(fence=fence, attempts=answers), d)
+            try:
+                view = consumer._await_attempt_after_restart("k", {"id": 1.5}, handed=True, store="aaaa")
+                decision = consumer._decision_from_attempt("k", view)
+                self.assertEqual((decision.status, decision.ticket_id), ("accepted", "B-9"))
+            finally:
+                consumer.close()
+
+    def test_without_a_journalled_handoff_the_own_journal_is_the_proof(self):
+        with tempfile.TemporaryDirectory() as d:
+            executor = self._executor(fence=None)
+            consumer = self._consumer(executor, d)
+            try:
+                view = consumer._await_attempt_after_restart("k", {"id": 1.5}, handed=False)
+                self.assertTrue(view.get("not_handed_off"))
+                self.assertEqual(executor.fences, [])      # nothing was asked of the executor's store
+            finally:
+                consumer.close()
+
+    def test_unknown_delivery_of_an_order_built_from_real_evidence_is_recorded_as_exposure_not_as_a_test_entry(self):
+        """No attempt exists, so the record cannot take its provenance from one: it is the evidence of the order."""
+        from onewin_automation.consumer.core import Decision
+
+        for built_synthetic, expected in ((False, False), (True, True)):
+            with tempfile.TemporaryDirectory() as d:
+                consumer = self._consumer(self._executor(fence=None), d)
+                try:
+                    consumer.journal.append({"phase": "claimed", "key": "k", "task_id": 1.5, "snapshot": {"id": 1.5}})
+                    consumer.journal.append({"phase": "built", "key": "k", "synthetic": built_synthetic})
+                    consumer._write_queue("k", {"id": 1.5}, Decision("unresolved", ["order_delivery_unknown_after_restart"], "executor"), None)
+                    recorded = [a for op, a in consumer.queue.calls if op == "record_outcome"][-1]["outcome"]
+                    self.assertEqual((recorded["status"], recorded["synthetic"]), ("unresolved", expected))
+                finally:
+                    consumer.close()
+
+    def test_a_refusal_before_anything_was_built_is_never_an_order(self):
+        from onewin_automation.consumer.core import Decision
+
+        with tempfile.TemporaryDirectory() as d:
+            consumer = self._consumer(self._executor(fence=None), d)
+            try:
+                consumer.journal.append({"phase": "claimed", "key": "k2", "task_id": 2.5, "snapshot": {"id": 2.5}})
+                consumer._write_queue("k2", {"id": 2.5}, Decision("not_sent", ["refused"], "engine"), None)
+                recorded = [a for op, a in consumer.queue.calls if op == "record_outcome"][-1]["outcome"]
+                self.assertTrue(recorded["synthetic"])
             finally:
                 consumer.close()
 

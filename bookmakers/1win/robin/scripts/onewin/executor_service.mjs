@@ -74,6 +74,7 @@ export function createExecutorServer(core, { token, host = '127.0.0.1', port = 0
         const key = route[1];
         if (method === 'GET' && route.length === 2) return sendJson(res, 200, core.attempt(key));
         if (method === 'POST' && route.length === 3 && route[2] === 'withdraw') return sendJson(res, 200, await core.withdraw(key, body && body.reason));
+        if (method === 'POST' && route.length === 3 && route[2] === 'fence') return sendJson(res, 200, await core.fence(key, body && body.reason));
         if (method === 'POST' && route.length === 3 && route[2] === 'revisions') {
           return sendJson(res, 200, await core.addRevision(key, body && body.kind, body && body.data));
         }

@@ -20,7 +20,7 @@ from typing import Any
 
 from .core import Consumer, PreflightError
 from .executor_client import ExecutorClient, ExecutorRefused, ExecutorUnavailable
-from .journal import InstanceLockError
+from .journal import InstanceLockError, JournalError, group_items, open_exposures, read_records
 from .jev_advisor import JevAdvisor
 from .policy import MODES, PolicyError, load_policy
 from .queue_client import QueueClient, QueueError
@@ -78,8 +78,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "status":
+        # read-only: no lock, no executor, no queue; the journal is only read (before a rollback this is the
+        # list of open exposures the operator must not lose)
+        journal_file = policy.account_dir / "journal.jsonl"
+        open_items: list[dict] | None = None
+        if journal_file.exists():
+            try:
+                open_items = open_exposures(group_items(read_records(journal_file)))
+            except JournalError as exc:
+                open_items = [{"error": f"journal:{exc}"}]
         _emit({"event": "status", "mode": policy.mode, "environment": policy.environment, "account_id": policy.account_id,
-               "currency": policy.currency, "stake": policy.stake, "purpose": policy.purpose, "consumer_id": policy.consumer_id})
+               "currency": policy.currency, "stake": policy.stake, "purpose": policy.purpose, "consumer_id": policy.consumer_id,
+               "journal": str(journal_file) if journal_file.exists() else None, "open_items": open_items})
         return 0
 
     if args.command == "run" and policy.mode == "disabled":

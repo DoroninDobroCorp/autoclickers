@@ -90,6 +90,10 @@ const OPS = {
 
   release: ({ task_id: taskId, token }) => manager.releaseClaim(taskId, token),
 
+  // the order is about to be handed to the executor: a lost lease from here on is an unresolved
+  // exposure, not a cancellation (see TasksManager.markClaimHandoff)
+  mark_handoff: ({ task_id: taskId, token, attempt_key: attemptKey }) => manager.markClaimHandoff(taskId, token, attemptKey),
+
   record_outcome: ({ task_id: taskId, outcome }) => manager.recordExecutionOutcome(taskId, outcome),
 
   resolve_outcome: ({ attempt_key: attemptKey, resolution }) => manager.resolveExecutionOutcome(attemptKey, resolution),

@@ -3,6 +3,7 @@ the product executor in front of a local TLS stand.  The stand is the ONLY stub;
 synthetic and labelled so."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ import threading
 import time
 import urllib.request
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -181,6 +183,134 @@ class Stand:
             self.stderr.close()
         except OSError:
             pass
+
+
+class HoldingProxy:
+    """Stands in for the tunnel between the consumer and the executor (SYNTHETIC: a test double of the network).
+
+    Everything is forwarded at once except what the test decides to disturb:
+      * ``hold_orders``  the POST of an order is received and HELD: it left the consumer, it has not arrived.
+                         ``release()`` delivers the held requests later (a late delivery); ``discard()`` never does.
+      * ``drop_response_orders``  the order is delivered, its answer is lost (connection closed without a reply).
+      * ``fence``        'pass' | 'drop' (connection closed) | 'missing' (404, an executor without the route).
+    ``orders_arrived`` counts the order POSTs that reached the proxy, ``orders_delivered`` those given to the executor.
+    """
+
+    def __init__(self, upstream_url: str):
+        self.upstream = upstream_url.replace("http://", "").rstrip("/")
+        self.hold_orders = False
+        self.drop_response_orders = False
+        self.fence = "pass"
+        self.orders_arrived = 0
+        self.orders_delivered = 0
+        self.fence_calls = 0
+        self.log: list[tuple[str, str]] = []
+        self._held: list[dict[str, Any]] = []
+        self._cond = threading.Condition()
+        self._released = False
+        self._discarded = False
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *a):  # noqa: D401
+                pass
+
+            def _serve(self):
+                length = int(self.headers.get("content-length") or 0)
+                body = self.rfile.read(length) if length else None
+                outer.log.append((self.command, self.path))
+                is_order = self.command == "POST" and self.path == "/v1/orders"
+                if is_order:
+                    outer.orders_arrived += 1
+                    if outer.hold_orders:
+                        with outer._cond:
+                            outer._held.append({"path": self.path})
+                            outer._cond.notify_all()
+                            while not outer._released and not outer._discarded:
+                                outer._cond.wait(0.2)
+                        if outer._discarded:
+                            return
+                if self.path.endswith("/fence") and self.command == "POST":
+                    outer.fence_calls += 1
+                    if outer.fence == "drop":
+                        self.connection.close()
+                        return
+                    if outer.fence == "missing":
+                        self._reply(404, json.dumps({"error": {"code": "NOT_FOUND", "message": "unknown route"}}).encode())
+                        return
+                status, payload = outer._forward(self.command, self.path, body, dict(self.headers))
+                if is_order:
+                    outer.orders_delivered += 1
+                    if outer.drop_response_orders:
+                        self.connection.close()
+                        return
+                self._reply(status, payload)
+
+            def _reply(self, status: int, payload: bytes):
+                try:
+                    self.send_response(status)
+                    self.send_header("content-type", "application/json")
+                    self.send_header("content-length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    pass   # the consumer that asked is gone (that is the point of a late delivery)
+
+            do_GET = do_POST = _serve
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.daemon_threads = True
+        self.port = self.server.server_address[1]
+        self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}"
+
+    def _forward(self, method: str, path: str, body: bytes | None, headers: dict[str, str]) -> tuple[int, bytes]:
+        host, port = self.upstream.split(":")
+        conn = http.client.HTTPConnection(host, int(port), timeout=60)
+        try:
+            keep = {k: v for k, v in headers.items() if k.lower() in ("authorization", "content-type", "accept")}
+            conn.request(method, path, body=body, headers=keep)
+            reply = conn.getresponse()
+            return reply.status, reply.read()
+        finally:
+            conn.close()
+
+    @property
+    def held(self) -> int:
+        with self._cond:
+            return len(self._held)
+
+    def wait_held(self, count: int = 1, timeout: float = 60.0) -> bool:
+        end = time.monotonic() + timeout
+        with self._cond:
+            while len(self._held) < count:
+                left = end - time.monotonic()
+                if left <= 0:
+                    return False
+                self._cond.wait(min(left, 0.2))
+        return True
+
+    def release(self) -> None:
+        """Deliver every held order to the executor now (late delivery)."""
+        with self._cond:
+            self._released = True
+            self._cond.notify_all()
+
+    def discard(self) -> None:
+        with self._cond:
+            self._discarded = True
+            self._cond.notify_all()
+
+    def close(self) -> None:
+        self.discard()
+        self.server.shutdown()
+        self.server.server_close()
 
 
 def leftover_browsers() -> list[int]:

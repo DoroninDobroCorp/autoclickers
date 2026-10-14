@@ -730,6 +730,40 @@ export class DurableAttemptStore {
     });
   }
 
+  // Not-sent fence, acknowledged by the owner of the store under the store lock. When no attempt exists
+  // for the key a tombstone is written: from then on no claim, and therefore no placement, can happen for
+  // it. When an attempt exists nothing is changed and its status is returned (the caller follows it).
+  // This is the only proof that a hand-off which was not answered has not happened and will not happen:
+  // the absence of an attempt at one moment proves nothing while the request can still arrive.
+  async fenceUnclaimed(key, reason = 'fenced') {
+    this._assertUsable();
+    if (typeof key !== 'string' || !key.trim()) throw new Error('UNKNOWN_ATTEMPT_KEY');
+    const cleanKey = key.trim();
+    return this._withLock(() => {
+      this._assertUsable();
+      const attemptsMap = this._readDataUnlocked();
+      const entry = attemptsMap.get(cleanKey);
+      if (entry) return { fenced: false, status: entry.status };
+      let tombstone = this._tombstones.get(cleanKey);
+      if (!tombstone) {
+        tombstone = { at: Date.now(), reason: String(reason).slice(0, 200) };
+        this._tombstones.set(cleanKey, tombstone);
+        this._writeDataUnlocked(attemptsMap);
+      }
+      return { fenced: true, tombstone: { at: tombstone.at, reason: tombstone.reason } };
+    });
+  }
+
+  getTombstone(key) {
+    if (typeof key !== 'string' || !key.trim()) return null;
+    const cleanKey = key.trim();
+    return this._withLock(() => {
+      this._readDataUnlocked();
+      const tombstone = this._tombstones.get(cleanKey);
+      return tombstone ? { at: tombstone.at, reason: tombstone.reason } : null;
+    });
+  }
+
   // Explicit audit mechanism: corrections never rewrite the sealed attempt.
   async addRevision(key, { kind, data }) {
     this._assertUsable();
