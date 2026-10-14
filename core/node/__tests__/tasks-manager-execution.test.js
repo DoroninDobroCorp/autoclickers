@@ -108,6 +108,43 @@ describe('TasksManager execution ownership and outcomes', () => {
       expect(afterCrash.isProcessing('1win')).toBe(false);
     });
 
+    test('a consumer that opens the file with startupCleanup=false leaves every slot as it found it', () => {
+      const old = task({ createdAt: Date.now() - 120000 });
+      manager.addTask(old);
+      manager.startProcessing('1win');
+      const other = task({ bookmakerId: 'sansabet', createdAt: Date.now() - 120000, id: 99.5 });
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      data.currentTasks.sansabet = other;
+      data.processing.sansabet = true;
+      fs.writeFileSync(file, JSON.stringify(data));
+      new TasksManager({ tasksFilePath: file, startupCleanup: false });
+      expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(data);
+      new TasksManager({ tasksFilePath: file });
+      const cleaned = JSON.parse(fs.readFileSync(file, 'utf8'));
+      expect(cleaned.currentTasks.sansabet).toBeNull(); // the default behaviour of every other process
+    });
+
+    test('a producer is not locked out by a consumer that lost its lease; a live lease still blocks it', () => {
+      const t = task();
+      manager.addTask(t);
+      manager.claimTask(t.id, { consumerId: 'A', leaseMs: 60000 });
+      const blocked = task({ outcome: 'P2 T< 1' });
+      expect(manager.addTask(blocked)).toBe(false);
+      expect(manager.getCurrentTask('1win').id).toBe(t.id);
+
+      manager.claimTask(t.id, { consumerId: 'A', leaseMs: 1000, now: Date.now() - 10000 });
+      const waiting = task({ outcome: 'P2 T< 1' });
+      expect(manager.addTask(waiting)).toBe(true);
+      expect(manager.getCurrentTask('1win').id).toBe(waiting.id);
+      expect(manager.isProcessing('1win')).toBe(false);
+      const lease = manager.getHistory('1win').find((h) => h.step === 'claim_lease_expired');
+      expect(lease).toMatchObject({ status: 'cancelled', taskId: t.id, claimConsumerId: 'A' });
+      // the consumer's own recovery can still settle the old task from its journal snapshot
+      const late = manager.recordExecutionOutcome(t.id, { status: 'unresolved', attemptKey: 'late', taskSnapshot: t, stake: 1 });
+      expect(late.recorded).toBe(true);
+      expect(manager.getCurrentTask('1win').id).toBe(waiting.id); // the new task keeps its slot
+    });
+
     test('releaseClaim needs the token and frees the processing flag', () => {
       const t = task();
       manager.addTask(t);

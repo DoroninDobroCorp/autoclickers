@@ -79,6 +79,8 @@ class TasksManager {
     this.betting = config.betting || {};
     this._lockDepth = 0;
     this._lockTimeoutMs = Number(config.lockTimeoutMs) > 0 ? Number(config.lockTimeoutMs) : 10000;
+    // A consumer must not clean up, at ITS start, the slots of other bookmakers: it passes false.
+    this._startupCleanup = config.startupCleanup !== false;
 
     // Every read-modify-write of the file runs under one cross-process lock (lost updates between a
     // producer and a consumer in different processes). Read-only methods rely on the atomic rename
@@ -103,7 +105,7 @@ class TasksManager {
         processing: {},      // { bookmakerId: boolean }
         history: []
       });
-    } else {
+    } else if (this._startupCleanup) {
       // Migration and cleanup on startup
       const data = this.read();
       let needUpdate = false;
@@ -843,9 +845,27 @@ class TasksManager {
     task.minOdds = task.minOdds || this.getMinOdds(task);
     task.maxOdds = task.maxOdds || this.getMaxOdds(task);
     const bookmakerId = task.bookmakerId;
-    const current = data.currentTasks[bookmakerId];
+    let current = data.currentTasks[bookmakerId];
     const pending = data.pendingTasks[bookmakerId];
-    const processing = data.processing[bookmakerId] || false;
+    let processing = data.processing[bookmakerId] || false;
+
+    // A consumer that claimed the current task and then lost its lease (crash, stall) must not hold
+    // the slot for good: the slot is free again. Its work is not lost: the outcome of that attempt is
+    // written by the consumer's recovery from its own journal and from the executor's durable attempt.
+    if (current && current.executionClaim && Number(current.executionClaim.leaseUntil) < Date.now()) {
+      data.history.push({
+        matchKey: current.matchKey, outcome: current.outcome, timestamp: Date.now(), status: 'cancelled',
+        error: 'execution lease expired; the attempt is settled by the consumer from its journal',
+        step: 'claim_lease_expired', home: current.home, away: current.away, taskId: current.id,
+        source: current.source || 'analyzer', sourceType: current.sourceType || getResolvedSource(current).sourceType,
+        betCategory: current.betCategory || 'analyzer_normal', testMode: current.testMode || false,
+        bookmakerId: current.bookmakerId, accountId: current.accountId || null, claimConsumerId: current.executionClaim.consumerId
+      });
+      data.currentTasks[bookmakerId] = null;
+      data.processing[bookmakerId] = false;
+      current = null;
+      processing = false;
+    }
 
     // Check if MATCH is blocked (any 3 failures on the match)
     if (this.isMatchBlocked(task.matchKey)) {
@@ -1582,11 +1602,26 @@ class TasksManager {
     }
     const data = this.read();
     const existing = data.history.find((h) => h.executionOutcome && h.executionOutcome.attemptKey === attemptKey);
-    if (existing) {
-      const same = existing.executionOutcome.status === status;
-      return { recorded: false, already: true, same, entry: existing };
-    }
     const location = this._findTaskLocation(data, (task) => task.id === taskId);
+    if (existing) {
+      // already settled: nothing new is recorded. A re-delivered copy of the same task that sits in
+      // the queue again is taken out of its slot, otherwise it would block the bookmaker for good.
+      const same = existing.executionOutcome.status === status;
+      let slotCleared = false;
+      if (location) {
+        const { bookmakerId } = location;
+        if (location.slot === 'current') {
+          const pending = data.pendingTasks[bookmakerId];
+          data.currentTasks[bookmakerId] = pending || null;
+          if (pending) data.pendingTasks[bookmakerId] = null;
+          data.processing[bookmakerId] = false;
+        } else {
+          data.pendingTasks[bookmakerId] = null;
+        }
+        slotCleared = this.atomicWrite(data);
+      }
+      return { recorded: false, already: true, same, slotCleared, entry: existing };
+    }
     const task = location ? location.task : (outcome.taskSnapshot && outcome.taskSnapshot.id === taskId ? outcome.taskSnapshot : null);
     if (!task || !task.bookmakerId) return { recorded: false, reason: 'task_not_found' };
     const entry = this._executionHistoryEntry(task, status, outcome, Date.now());
