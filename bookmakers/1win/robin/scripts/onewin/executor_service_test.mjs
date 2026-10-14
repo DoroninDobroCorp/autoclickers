@@ -11,7 +11,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { DurableAttemptStore } from './browser_live_cart.mjs';
 import { pidsWithMarker } from './session_runner.mjs';
-import { BET_HOST, SITE_HOST, XSITE_HOST, eventPageHtml, startStand } from './transport_stand.mjs';
+import { BET_HOST, SITE_HOST, XSITE_HOST, chromiumPath, eventPageHtml, startStand } from './transport_stand.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVICE = path.join(here, 'executor_service.mjs');
@@ -24,7 +24,7 @@ function configFor(stand, dir, over = {}) {
   fs.writeFileSync(file, JSON.stringify({
     store_path: path.join(dir, 'attempts.json'), mode: 'dry', environment: 'local_stand', token_env: 'ONEWIN_EXECUTOR_TOKEN',
     listen: { host: '127.0.0.1', port: 0 }, bet_api_origins: [stand.betOrigin], site_origin: stand.siteOrigin,
-    session: { allow_direct: true, launch_args: [
+    session: { allow_direct: true, ...(chromiumPath() ? { executable_path: chromiumPath() } : {}), launch_args: [
       `--host-resolver-rules=MAP ${BET_HOST} 127.0.0.1,MAP ${SITE_HOST} 127.0.0.1,MAP ${XSITE_HOST} 127.0.0.1`,
       '--proxy-bypass-list=<-loopback>', '--ignore-certificate-errors', `--onewin-test-marker=${MARKER}`] },
     ...over,
@@ -58,7 +58,7 @@ async function call(port, method, urlPath, body, token = TOKEN) {
   return { status: response.status, body: await response.json() };
 }
 
-test('configuration refusals: no token, production with foreign origins, unknown environment', async () => {
+test('configuration refusals: no token, production with foreign origins, unknown environment, open listener', async () => {
   const dir = tmp();
   const stand = await startStand({ tls: true });
   try {
@@ -66,7 +66,8 @@ test('configuration refusals: no token, production with foreign origins, unknown
     const noToken = spawn(process.execPath, [SERVICE, '--config', file], { env: { ...process.env, ONEWIN_EXECUTOR_TOKEN: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
     const code = await new Promise((resolve) => noToken.on('exit', resolve));
     assert.equal(code, 1);
-    for (const over of [{ environment: 'production' }, { environment: 'staging' }, { mode: 'live' }]) {
+    for (const over of [{ environment: 'production' }, { environment: 'staging' }, { mode: 'live' },
+      { listen: { host: '0.0.0.0', port: 0 } }]) {
       const bad = configFor(stand, dir, over);
       const proc = start(bad);
       const result = await proc.exited;

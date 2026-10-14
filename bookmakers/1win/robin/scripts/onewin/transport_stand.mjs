@@ -35,10 +35,23 @@ export async function loadChromium() {
   return null;
 }
 
+// The FULL browser (not Playwright's headless shell): only it has site isolation, i.e. out-of-process
+// iframes, and the transport guard must be exercised on that. PLAYWRIGHT_CHROMIUM_PATH overrides.
 export function chromiumPath() {
-  return process.env.PLAYWRIGHT_CHROMIUM_PATH
-    || ['/home/ubuntu/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome'].find((p) => fs.existsSync(p))
-    || undefined;
+  if (process.env.PLAYWRIGHT_CHROMIUM_PATH) return process.env.PLAYWRIGHT_CHROMIUM_PATH;
+  const fixed = ['/home/ubuntu/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome'].find((p) => fs.existsSync(p));
+  if (fixed) return fixed;
+  const cache = path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright');
+  try {
+    const versions = fs.readdirSync(cache).filter((n) => /^chromium-\d+$/.test(n)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
+    for (const version of versions) {
+      for (const dir of ['chrome-mac-arm64', 'chrome-mac-x64', 'chrome-mac']) {
+        const binary = path.join(cache, version, dir, 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing');
+        if (fs.existsSync(binary)) return binary;
+      }
+    }
+  } catch { /* no cache */ }
+  return undefined;
 }
 
 // The DOM contract the carts rely on (market groups, outcome buttons, betslip aside, masked amount
@@ -237,13 +250,14 @@ self.addEventListener('message',async e=>{const m=e.data||{};
 }
 
 // Chromium that resolves the production host names to the stand. extraArgs are appended.
-export async function launchStandBrowser(stand, { extraArgs = [], contextOptions = {} } = {}) {
+export async function launchStandBrowser(stand, { extraArgs = [], contextOptions = {}, marker = null } = {}) {
   const chromium = await loadChromium();
   if (!chromium) return null;
   const browser = await chromium.launch({ headless: true, executablePath: chromiumPath(), args: [
     '--no-sandbox',
-    // lets an owner prove, by this marker, that every browser of a drill is gone
-    ...(process.env.ONEWIN_STAND_MARKER ? [`--onewin-session-marker=${process.env.ONEWIN_STAND_MARKER}`] : []),
+    // lets an owner find (and only find) the browsers of this launch, and prove that they are gone
+    ...(marker ? [`--onewin-session-marker=${marker}`]
+      : (process.env.ONEWIN_STAND_MARKER ? [`--onewin-session-marker=${process.env.ONEWIN_STAND_MARKER}`] : [])),
     `--host-resolver-rules=MAP ${BET_HOST} 127.0.0.1,MAP ${SITE_HOST} 127.0.0.1,MAP ${XSITE_HOST} 127.0.0.1`,
     '--proxy-bypass-list=<-loopback>',
     `--unsafely-treat-insecure-origin-as-secure=${stand.siteOrigin}`,

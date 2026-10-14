@@ -593,7 +593,7 @@ class CrashAndRestart(ConsumerBase):
         state = self.prod.state(item["id"])
         self.assertEqual((state["where"], state["claim"]["consumerId"]), ("current", "consumer-acct-1"))
         # restart: the journal says "handed off", the executor says "never heard of it": nothing was sent
-        os.remove(self.account_dir() / "consumer.lock")  # the dead process cannot release it; the beat would age out
+        self.assertTrue((self.account_dir() / "consumer.lock").exists(), "a crashed consumer leaves its lock behind")
         rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
         self.assertEqual(rc, 0, lines)
         resumed = [r for r in reps if r.get("resumed_from")]
@@ -612,6 +612,7 @@ class CrashAndRestart(ConsumerBase):
         self.assertEqual(self.history()[-1]["status"], "unresolved")
         self.assertEqual(self.prod.current()["processing"], False)
         stand.restart()
+        self.assertEqual(stand.orphans_after_restart, [], "the browser of the dead owner was removed by its successor")
         self.assertEqual(stand.ready["recovered_on_start"][0]["to"], "WITHDRAWN")
         rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
         late = [r for r in reps if r.get("late_resolution")]
@@ -628,6 +629,7 @@ class CrashAndRestart(ConsumerBase):
         key = queue_item_identity(item)
         self.assertEqual(reps[0]["decision"], "unresolved", reps)
         stand.restart()
+        self.assertEqual(stand.orphans_after_restart, [], "the browser of the dead owner was removed by its successor")
         self.assertEqual(stand.ready["recovered_on_start"][0]["to"], "INDETERMINATE")
         rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
         self.assertFalse([r for r in reps if r.get("late_resolution")], "INDETERMINATE is never turned into a refusal by a restart")
@@ -656,6 +658,7 @@ class CrashAndRestart(ConsumerBase):
         key = queue_item_identity(item)
         self.assertEqual(reps[0]["decision"], "unresolved", reps)
         stand.restart()
+        self.assertEqual(stand.orphans_after_restart, [], "the browser of the dead owner was removed by its successor")
         view = self.attempt(stand, key)
         self.assertEqual(view["attempt"]["status"], "INDETERMINATE")
         native = view["attempt"]["native_request"]
@@ -683,7 +686,7 @@ class CrashAndRestart(ConsumerBase):
         rc, out = drive(policy, point, self.offset)
         self.assertEqual(rc, 137, out)
         self.assertEqual(stand.money, 1)
-        os.remove(self.account_dir() / "consumer.lock")
+        self.assertTrue((self.account_dir() / "consumer.lock").exists())
         rc, lines, reps = self.run_once(policy, "--idle-exit-s", "0.5")
         self.assertEqual(rc, 0, lines)
         resumed = [r for r in reps if r.get("resumed_from")]

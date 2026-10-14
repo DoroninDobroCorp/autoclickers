@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { OneWinDryRunCart } from './browser_cart.mjs';
 import { DurableAttemptStore, OneWinLiveCart } from './browser_live_cart.mjs';
+import { pidsWithMarker } from './session_runner.mjs';
 import { DEFAULT_BET_API_ORIGINS, TRANSPORT_GUARD_VERSION } from './transport_guard.mjs';
 
 export const EXECUTOR_CONTRACT = 'automation-executor.v1';
@@ -47,7 +48,14 @@ export class OwnerLock {
   }
 
   _body() {
-    return JSON.stringify({ pid: process.pid, host: os.hostname(), token: this.token, started_at: this.startedAt, heartbeat_at: Date.now() });
+    return JSON.stringify({ pid: process.pid, host: os.hostname(), token: this.token, started_at: this.startedAt, heartbeat_at: Date.now(),
+      browser_marker: this.browserMarker || null });
+  }
+
+  // the browser this owner started is recorded, so that a successor can find (and only that) leftover
+  setBrowserMarker(marker) {
+    this.browserMarker = marker || null;
+    try { this._write(false); } catch { /* next beat */ }
   }
 
   _write(exclusive) {
@@ -55,8 +63,10 @@ export class OwnerLock {
     try { fs.writeSync(fd, this._body()); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   }
 
+  // Returns the holder that was taken over (a dead owner), or null.
   acquire() {
     this.startedAt = Date.now();
+    let previous = null;
     for (let round = 0; round < 3; round += 1) {
       try {
         this._write(true);
@@ -72,12 +82,14 @@ export class OwnerLock {
         }
         const alive = holder && !processGone && Date.now() - Number(holder.heartbeat_at || 0) < this.staleMs;
         if (alive) throw new ExecutorError('EXECUTOR_ALREADY_RUNNING', `store is owned by pid ${holder.pid}`, 409);
+        previous = holder;
         try { fs.unlinkSync(this.lockPath); } catch { /* raced */ }
         if (round === 2) throw new ExecutorError('EXECUTOR_LOCK_UNAVAILABLE', 'owner lock could not be taken', 500);
       }
     }
     this.timer = setInterval(() => { try { this._write(false); } catch { /* next beat */ } }, this.heartbeatMs);
     this.timer.unref?.();
+    return previous;
   }
 
   release() {
@@ -130,7 +142,14 @@ export class ExecutorCore {
 
   async start() {
     fs.mkdirSync(path.dirname(this.storePath), { recursive: true, mode: 0o700 });
-    this.lock.acquire();
+    const previous = this.lock.acquire();
+    // a dead owner may have left its browser behind: it is found by the marker it recorded, nothing else is touched
+    this.orphanBrowsersClosed = [];
+    if (previous && typeof previous.browser_marker === 'string' && previous.browser_marker) {
+      for (const pid of pidsWithMarker(previous.browser_marker)) {
+        try { process.kill(pid, 'SIGKILL'); this.orphanBrowsersClosed.push(pid); } catch { /* gone */ }
+      }
+    }
     try {
       this.store = new DurableAttemptStore(this.storePath, { maxStake: this.maxBudgetUsdt });
       if (this.store.isDurable !== true) throw new ExecutorError('STORE_NOT_DURABLE', 'attempt store is not durable', 500);
@@ -174,6 +193,7 @@ export class ExecutorCore {
       in_flight: [...this.inFlight.keys()],
       started_at: this.startedAt,
       recovered_on_start: this.recovered,
+      orphan_browsers_closed: this.orphanBrowsersClosed || [],
       browser: this.session ? { version: this.session.info?.version || null } : null,
       evidence_provider: this.evidenceProvider ? (this.evidenceProvider.name || 'configured') : null,
     };
@@ -184,7 +204,10 @@ export class ExecutorCore {
       try { await this.session.close(); } catch { /* dead */ }
       this.session = null;
     }
-    if (!this.session) this.session = await this.browserFactory();
+    if (!this.session) {
+      this.session = await this.browserFactory();
+      this.lock.setBrowserMarker(this.session.info && this.session.info.marker);
+    }
     return this.session;
   }
 

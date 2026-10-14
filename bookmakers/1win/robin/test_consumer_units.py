@@ -97,6 +97,16 @@ class InstanceLockTest(unittest.TestCase):
             taken = InstanceLock(path, stale_s=2)
             taken.acquire()
             taken.release()
+            # a holder on THIS host whose process is gone is stale at once, however fresh its last beat
+            import socket
+            path.write_text(json.dumps({"pid": 2147483646, "host": socket.gethostname(), "token": "t", "heartbeat_at": time.time()}))
+            again = InstanceLock(path, stale_s=600)
+            again.acquire()
+            again.release()
+            # ... and a live one on this host is not taken over
+            path.write_text(json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "token": "t", "heartbeat_at": time.time()}))
+            with self.assertRaises(InstanceLockError):
+                InstanceLock(path, stale_s=600).acquire()
 
 
 class AdviserTest(unittest.TestCase):

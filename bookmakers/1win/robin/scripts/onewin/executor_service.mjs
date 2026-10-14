@@ -129,6 +129,11 @@ function loadConfig(file) {
   if (!['production', 'local_stand'].includes(config.environment)) throw new Error('executor config: environment must be production or local_stand');
   if (config.environment === 'production' && config.bet_api_origins) throw new Error('executor config: a production executor uses the production origins');
   if (config.environment === 'local_stand' && !Array.isArray(config.bet_api_origins)) throw new Error('executor config: local_stand needs bet_api_origins');
+  // the order contract carries money: it is reached through a tunnel, never through an open listener
+  const host = (config.listen && config.listen.host) || '127.0.0.1';
+  if (!['127.0.0.1', '::1', 'localhost'].includes(host) && config.listen.allow_non_loopback !== true) {
+    throw new Error('executor config: listen.host must be loopback (set listen.allow_non_loopback only behind a firewall you own)');
+  }
   return config;
 }
 

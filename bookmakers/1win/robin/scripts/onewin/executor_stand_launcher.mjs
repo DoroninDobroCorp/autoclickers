@@ -112,9 +112,11 @@ const core = new ExecutorCore({
   clock,
   evidenceProvider,
   browserFactory: async () => {
-    const launched = await launchStandBrowser(stand);
+    // one marker per launch (prefix: the drill's), recorded in the owner lock for a successor to find
+    const marker = `${process.env.ONEWIN_STAND_MARKER || 'onewin-stand'}-${process.pid}-${Date.now()}`;
+    const launched = await launchStandBrowser(stand, { marker });
     await launched.context.close();
-    return { browser: launched.browser, info: { version: launched.browser.version() },
+    return { browser: launched.browser, info: { version: launched.browser.version(), marker },
       close: async () => { await launched.browser.close().catch(() => {}); } };
   },
 });

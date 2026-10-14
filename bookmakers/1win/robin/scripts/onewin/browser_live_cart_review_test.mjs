@@ -137,11 +137,12 @@ function wrapRecord(store, onRecord) {
   return store;
 }
 
-async function runCart(t, { clock, hooks = {}, planOverrides = {}, cancelled, onRecord, storePath } = {}) {
+async function runCart(t, { clock, hooks = {}, planOverrides = {}, cancelled, onRecord, storePath, beforeRun } = {}) {
   process.env.ONEWIN_AUTOMATION_LIVE_ENABLED = 'true';
   const file = storePath || tmpStore(t);
   const store = new DurableAttemptStore(file);
   if (onRecord) wrapRecord(store, onRecord);
+  if (beforeRun) beforeRun(store);
   const page = hookedPage({ hooks });
   const cart = new OneWinLiveCart(page, { attemptStore: store, liveEnabled: true });
   const result = await cart.run(plan(planOverrides), {
@@ -414,13 +415,36 @@ for (const [name, patch] of WRITE_FAILURES) {
   });
 }
 
+test('P1.5 directory sync failure at the point of permission: the native key cannot be made durable and nothing is forwarded', async (t) => {
+  const clock = { t: 1000 };
+  const file = tmpStore(t);
+  let restore = null;
+  const { result, store, page, cart } = await runCart(t, {
+    clock, storePath: file,
+    onRecord: async (status) => { if (status === 'SUBMITTING') restore = failFsync('dir'); },
+  });
+  if (restore) restore();
+  assert.equal(page.stats().makeBetPosts, 0, 'a request left although its native key could not be stored');
+  assert.equal(cart.submitSentCount, 0);
+  assert.equal(result.status, 'ABORTED_PRE_SUBMIT');
+  assert.ok(cart.blocked_reasons.some((r) => r.startsWith('native_request_not_recorded:')), JSON.stringify(cart.blocked_reasons));
+  assert.equal(store.isDurable, false);
+  const reopened = new DurableAttemptStore(file);
+  assert.equal(await reopened.claim('review-key-1', { stake: 1, currency: 'USDT', payload: claimPayload('review-key-1') }), false);
+  assert.equal(reopened.getAttempt('review-key-1').status, 'SUBMITTING', 'an open attempt is resolved by recovery, never re-armed');
+});
+
 test('P1.5 directory sync failure after the accepted receipt keeps the fact and forbids another bet', async (t) => {
   const clock = { t: 1000 };
   const file = tmpStore(t);
   let restore = null;
+  // the failure starts right after the native key was stored, i.e. after the request was permitted
   const { result, store } = await runCart(t, {
     clock, storePath: file,
-    onRecord: async (status) => { if (status === 'SUBMITTING') restore = failFsync('dir'); },
+    beforeRun: (s) => {
+      const real = s.recordNativeRequest.bind(s);
+      s.recordNativeRequest = async (...args) => { const out = await real(...args); restore = failFsync('dir'); return out; };
+    },
   });
   if (restore) restore();
   assert.equal(result.status, 'ACCEPTED', 'accepted fact lost after the sync error');

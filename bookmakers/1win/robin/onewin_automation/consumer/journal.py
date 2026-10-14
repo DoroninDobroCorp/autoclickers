@@ -148,7 +148,7 @@ class InstanceLock:
                     holder = json.loads(self.path.read_text())
                 except (OSError, ValueError):
                     holder = None
-                if holder and time.time() - float(holder.get("heartbeat_at", 0)) < self.stale_s:
+                if holder and self._holder_alive(holder):
                     raise InstanceLockError(f"another consumer (pid {holder.get('pid')}) owns this account state")
                 try:
                     self.path.unlink()
@@ -166,6 +166,18 @@ class InstanceLock:
             raise InstanceLockError("instance lock could not be taken")
         self._thread = threading.Thread(target=self._beat, daemon=True)
         self._thread.start()
+
+    def _holder_alive(self, holder: dict[str, Any]) -> bool:
+        """A holder whose process is gone (same host) is stale at once; otherwise it must keep beating."""
+        pid = holder.get("pid")
+        if holder.get("host") == socket.gethostname() and isinstance(pid, int) and pid > 0:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                pass
+        return time.time() - float(holder.get("heartbeat_at", 0)) < self.stale_s
 
     def _beat(self) -> None:
         while not self._stop.wait(self.stale_s / 4):

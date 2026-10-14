@@ -72,6 +72,8 @@ class Stand:
         self.proc: subprocess.Popen | None = None
         # fixed for the life of the Stand object: a restarted executor is found at the same address
         self.executor_port, self.control_port = _free_port(), _free_port()
+        self.orphans_killed: list[int] = []
+        self.orphans_after_restart: list[int] = []
         self.ready: dict[str, Any] = {}
         self.stderr = tempfile.NamedTemporaryFile("w+", suffix=".stand.err", delete=False)
 
@@ -102,8 +104,12 @@ class Stand:
 
     def restart(self, **config: Any) -> "Stand":
         """A new executor process on the same attempt store and the same address."""
-        self.stop(force=True)
-        self.start()
+        previous = self.proc.pid if self.proc else None
+        self.kill()                     # the process is gone; its browser may not be
+        self.start()                    # a successor on the same store finds and removes it by the recorded marker
+        needle = f"{MARKER}-{previous}-"
+        out = subprocess.run(["ps", "-eo", "pid=,args="], capture_output=True, text=True).stdout
+        self.orphans_after_restart = [int(l.split(None, 1)[0]) for l in out.splitlines() if needle in l and "ps -eo" not in l]
         if config:
             self.config(**config)
         return self
@@ -140,6 +146,24 @@ class Stand:
             self.proc.send_signal(signal.SIGKILL)
             self.proc.wait(timeout=10)
 
+    def _kill_own_orphans(self) -> list[int]:
+        """A launcher that was SIGKILLed leaves its browser behind (the drill's crash points do exactly
+        that): the owner of the drill removes it by the marker of THAT launcher, nothing else."""
+        if not self.proc:
+            return []
+        needle = f"{MARKER}-{self.proc.pid}-"
+        out = subprocess.run(["ps", "-eo", "pid=,args="], capture_output=True, text=True).stdout
+        killed = []
+        for line in out.splitlines():
+            if needle in line and "ps -eo" not in line:
+                pid = int(line.split(None, 1)[0])
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                    killed.append(pid)
+                except OSError:
+                    pass
+        return killed
+
     def stop(self, force: bool = False) -> None:
         if not self.proc:
             return
@@ -152,6 +176,7 @@ class Stand:
                 self.proc.wait(timeout=10)
         if self.proc.stdout:
             self.proc.stdout.close()
+        self.orphans_killed = self._kill_own_orphans()
         try:
             self.stderr.close()
         except OSError:
