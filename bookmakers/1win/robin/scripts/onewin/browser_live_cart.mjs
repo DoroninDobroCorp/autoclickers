@@ -31,7 +31,7 @@ function isNativeOddId(value) {
 const MAKE_BET_BODY_KEYS = new Set(['currencyCode', 'idempotencyKey', 'freebetId', 'bonusPercent', 'bonuses', 'amount', 'meta', 'coupon', 'wallet']);
 const MAKE_BET_COUPON_KEYS = new Set(['freebetId', 'amount', 'selections']);
 const MAKE_BET_SELECTION_KEYS = new Set(['oddId', 'cf', 'matchId', 'marketId']);
-const MAKE_BET_META_KEYS = new Set(['autoBetAmount', 'isDirtyAmountField', 'sharedBetCode']);
+const MAKE_BET_META_KEYS = new Set(['autoBetAmount', 'isDirtyAmountField', 'sharedBetCode', 'flags']);
 const MAKE_BET_WALLET_KEYS = new Set(['type', 'bonusId']);
 const REQUIRED_EXPIRIES = ['task', 'donor', 'reference', 'margins', 'executor_quote', 'account'];
 // Directory fsync results that mean "this filesystem cannot do it" rather than
@@ -985,6 +985,17 @@ export class OneWinLiveCart {
       }
       if (m.isDirtyAmountField !== undefined && typeof m.isDirtyAmountField !== 'boolean') {
         return { ok: false, reason: 'meta_is_dirty_amount_field_invalid' };
+      }
+      // The live client (2026-10-16) sends meta.flags, e.g. ["new_express_flow"]. It does not
+      // change amount, price, wallet or selection; those stay exact-matched below. Bonus-like
+      // names stay refused.
+      if (m.flags !== undefined) {
+        const flagsOk = Array.isArray(m.flags) && m.flags.length <= 8
+          && m.flags.every((flag) => typeof flag === 'string' && /^[a-z0-9_]{1,40}$/.test(flag));
+        if (!flagsOk) return { ok: false, reason: 'meta_flags_invalid' };
+        if (m.flags.some((flag) => /bonus|freebet|wallet|cash|promo/.test(flag))) {
+          return { ok: false, reason: 'meta_flags_forbidden' };
+        }
       }
     }
     if (body.currencyCode !== expected.currency) {
